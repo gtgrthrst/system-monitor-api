@@ -36,15 +36,21 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 .cpu-cores { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
 .core { background: #1a1a1a; padding: 8px; border-radius: 3px; }
 .update-time { color: #444; font-size: 11px; text-align: right; margin-top: 10px; }
+.chart { background: #0a0a0a; border: 1px solid #333; border-radius: 3px; margin: 10px 0; }
+.chart-label { display: flex; justify-content: space-between; font-size: 11px; color: #555; padding: 0 5px; }
 </style>
 </head>
 <body>
 <div class="container">
 <h1>[ System Monitor ]</h1>
 <div id="content">Loading...</div>
-<div class="update-time">Refresh: 2s</div>
+<div class="update-time">Refresh: 2s | History: 60 points</div>
 </div>
 <script>
+const MAX_POINTS = 60;
+let cpuHistory = [];
+let memHistory = [];
+
 function formatBytes(b) {
   const u = ['B', 'KB', 'MB', 'GB', 'TB'];
   let i = 0;
@@ -57,9 +63,63 @@ function formatUptime(s) {
   const m = Math.floor((s % 3600) / 60);
   return d + 'd ' + h + 'h ' + m + 'm';
 }
+function drawChart(canvasId, data, color, fillColor) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  // Grid lines
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = (h / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
+  if (data.length < 2) return;
+
+  // Fill area
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  data.forEach((v, i) => {
+    const x = (i / (MAX_POINTS - 1)) * w;
+    const y = h - (v / 100) * h;
+    if (i === 0) ctx.lineTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(((data.length - 1) / (MAX_POINTS - 1)) * w, h);
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  data.forEach((v, i) => {
+    const x = (i / (MAX_POINTS - 1)) * w;
+    const y = h - (v / 100) * h;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
 function update() {
   fetch('/api/system').then(r => r.json()).then(d => {
     let cpuAvg = d.cpu.usage_percent.reduce((a,b) => a+b, 0) / d.cpu.usage_percent.length;
+
+    // Update history
+    cpuHistory.push(cpuAvg);
+    memHistory.push(d.memory.used_percent);
+    if (cpuHistory.length > MAX_POINTS) cpuHistory.shift();
+    if (memHistory.length > MAX_POINTS) memHistory.shift();
+
     let cores = d.cpu.usage_percent.map((p, i) =>
       '<div class="core"><div class="row"><span class="label">Core ' + i + '</span><span class="value">' + p.toFixed(1) + '%</span></div>' +
       '<div class="bar-container"><div class="bar bar-cpu" style="width:' + p + '%"></div></div></div>'
@@ -72,15 +132,25 @@ function update() {
       '<div class="section"><div class="section-title">CPU - ' + d.cpu.model_name + '</div>' +
       '<div class="row"><span class="label">Average</span><span class="value">' + cpuAvg.toFixed(1) + '%</span></div>' +
       '<div class="bar-container"><div class="bar bar-cpu" style="width:' + cpuAvg + '%"></div></div>' +
+      '<canvas id="cpuChart" class="chart" width="740" height="80"></canvas>' +
+      '<div class="chart-label"><span>2 min ago</span><span>now</span></div>' +
       '<div class="cpu-cores">' + cores + '</div></div>' +
       '<div class="section"><div class="section-title">MEMORY</div>' +
       '<div class="row"><span class="label">Used</span><span class="value">' + formatBytes(d.memory.used_bytes) + ' / ' + formatBytes(d.memory.total_bytes) + '</span></div>' +
       '<div class="bar-container"><div class="bar bar-mem" style="width:' + d.memory.used_percent + '%"></div></div>' +
+      '<canvas id="memChart" class="chart" width="740" height="80"></canvas>' +
+      '<div class="chart-label"><span>2 min ago</span><span>now</span></div>' +
       '<div class="bar-text">' + d.memory.used_percent.toFixed(1) + '% used</div></div>' +
       '<div class="section"><div class="section-title">DISK /</div>' +
       '<div class="row"><span class="label">Used</span><span class="value">' + formatBytes(d.disk.used_bytes) + ' / ' + formatBytes(d.disk.total_bytes) + '</span></div>' +
       '<div class="bar-container"><div class="bar bar-disk" style="width:' + d.disk.used_percent + '%"></div></div>' +
       '<div class="bar-text">' + d.disk.used_percent.toFixed(1) + '% used</div></div>';
+
+    // Draw charts after DOM update
+    setTimeout(() => {
+      drawChart('cpuChart', cpuHistory, '#0f0', 'rgba(0,255,0,0.1)');
+      drawChart('memChart', memHistory, '#f0f', 'rgba(255,0,255,0.1)');
+    }, 0);
   }).catch(e => { document.getElementById('content').innerHTML = '<div style="color:red">Error: ' + e + '</div>'; });
 }
 update();
