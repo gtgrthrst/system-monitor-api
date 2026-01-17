@@ -10,10 +10,11 @@ A simple JSON API for system monitoring using Go and gopsutil.
 curl -fsSL https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.sh | sudo bash
 ```
 
-## API Endpoints
+## Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
+| `GET /` | Web dashboard (Glances-like UI) |
 | `GET /health` | Health check |
 | `GET /api/system` | System information (CPU, memory, disk, host) |
 

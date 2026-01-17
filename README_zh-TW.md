@@ -8,10 +8,11 @@
 curl -fsSL https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.sh | sudo bash
 ```
 
-## API 端點
+## 端點
 
 | 端點 | 說明 |
 |------|------|
+| `GET /` | Web 監控儀表板（類似 Glances） |
 | `GET /health` | 健康檢查 |
 | `GET /api/system` | 系統資訊（CPU、記憶體、磁碟、主機） |
 
