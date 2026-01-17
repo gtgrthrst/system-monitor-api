@@ -1,5 +1,7 @@
 # System Monitor API
 
+[繁體中文](README_zh-TW.md)
+
 A simple JSON API for system monitoring using Go and gopsutil.
 
 ## One-Line Install
