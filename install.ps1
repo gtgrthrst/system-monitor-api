@@ -14,10 +14,23 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit 1
 }
 
-# Check if Go is installed
+# Check if Go is installed, if not install it
 if (-NOT (Get-Command go -ErrorAction SilentlyContinue)) {
-    Write-Host "Go is not installed. Please install Go from https://go.dev/dl/" -ForegroundColor Red
-    exit 1
+    Write-Host "Installing Go..." -ForegroundColor Yellow
+    $goVersion = "1.22.0"
+    $goInstaller = "$env:TEMP\go$goVersion.windows-amd64.msi"
+
+    Write-Host "Downloading Go $goVersion..."
+    Invoke-WebRequest -Uri "https://go.dev/dl/go$goVersion.windows-amd64.msi" -OutFile $goInstaller
+
+    Write-Host "Installing Go..."
+    Start-Process msiexec.exe -ArgumentList "/i", $goInstaller, "/quiet", "/norestart" -Wait
+
+    # Add Go to PATH for current session
+    $env:Path = "$env:Path;C:\Program Files\Go\bin"
+
+    Remove-Item $goInstaller -Force
+    Write-Host "Go installed successfully" -ForegroundColor Green
 }
 
 Write-Host "Go version: $(go version)"
