@@ -2,7 +2,7 @@
 # Run as Administrator: powershell -ExecutionPolicy Bypass -File install.ps1
 
 $ErrorActionPreference = "Stop"
-$REPO = "https://github.com/gtgrthrst/system-monitor-api.git"
+$DOWNLOAD_URL = "https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/sysinfo-api-windows-amd64.exe"
 $INSTALL_DIR = "$env:ProgramFiles\sysinfo-api"
 $SERVICE_NAME = "SysinfoAPI"
 
@@ -14,41 +14,15 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit 1
 }
 
-# Check if Go is installed, if not install it
-if (-NOT (Get-Command go -ErrorAction SilentlyContinue)) {
-    Write-Host "Installing Go..." -ForegroundColor Yellow
-    $goVersion = "1.22.0"
-    $goInstaller = "$env:TEMP\go$goVersion.windows-amd64.msi"
-
-    Write-Host "Downloading Go $goVersion..."
-    Invoke-WebRequest -Uri "https://go.dev/dl/go$goVersion.windows-amd64.msi" -OutFile $goInstaller
-
-    Write-Host "Installing Go..."
-    Start-Process msiexec.exe -ArgumentList "/i", $goInstaller, "/quiet", "/norestart" -Wait
-
-    # Add Go to PATH for current session
-    $env:Path = "$env:Path;C:\Program Files\Go\bin"
-
-    Remove-Item $goInstaller -Force
-    Write-Host "Go installed successfully" -ForegroundColor Green
+# Create install directory
+if (-NOT (Test-Path $INSTALL_DIR)) {
+    New-Item -ItemType Directory -Path $INSTALL_DIR -Force | Out-Null
 }
 
-Write-Host "Go version: $(go version)"
-
-# Clone or update repo
-if (Test-Path $INSTALL_DIR) {
-    Write-Host "Updating existing installation..."
-    Set-Location $INSTALL_DIR
-    git pull
-} else {
-    Write-Host "Cloning repository..."
-    git clone $REPO $INSTALL_DIR
-    Set-Location $INSTALL_DIR
-}
-
-# Build
-Write-Host "Building..."
-go build -o sysinfo-api.exe
+# Download pre-built binary
+Write-Host "Downloading sysinfo-api..."
+Invoke-WebRequest -Uri $DOWNLOAD_URL -OutFile "$INSTALL_DIR\sysinfo-api.exe"
+Write-Host "Download complete" -ForegroundColor Green
 
 # Create Windows Service using sc.exe
 Write-Host "Creating Windows service..."
@@ -57,6 +31,7 @@ $binPath = "$INSTALL_DIR\sysinfo-api.exe"
 # Remove existing service if exists
 sc.exe stop $SERVICE_NAME 2>$null
 sc.exe delete $SERVICE_NAME 2>$null
+Start-Sleep -Seconds 1
 
 # Create new service
 sc.exe create $SERVICE_NAME binPath= $binPath start= auto
