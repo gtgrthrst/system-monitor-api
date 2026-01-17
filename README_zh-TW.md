@@ -2,10 +2,26 @@
 
 使用 Go 和 gopsutil 建立的簡易系統監控 JSON API。
 
-## 一鍵安裝
+## 安裝
+
+### Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.sh | sudo bash
+```
+
+### Windows
+
+以系統管理員身分執行 PowerShell：
+
+```powershell
+irm https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.ps1 | iex
+```
+
+或下載後手動執行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 ## 端點
@@ -48,20 +64,38 @@ curl -fsSL https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/i
 
 ## 手動編譯
 
+### Linux / macOS
+
 ```bash
 go build -o sysinfo-api
 ./sysinfo-api
+```
+
+### Windows
+
+```powershell
+go build -o sysinfo-api.exe
+.\sysinfo-api.exe
 ```
 
 伺服器監聽 **8088** 連接埠。
 
 ## 服務管理
 
-安裝後可使用 systemd 管理服務：
+### Linux (systemd)
 
 ```bash
 sudo systemctl status sysinfo-api   # 查看狀態
 sudo systemctl restart sysinfo-api  # 重啟服務
 sudo systemctl stop sysinfo-api     # 停止服務
 sudo systemctl start sysinfo-api    # 啟動服務
+```
+
+### Windows
+
+```powershell
+Get-Service SysinfoAPI              # 查看狀態
+Restart-Service SysinfoAPI          # 重啟服務
+Stop-Service SysinfoAPI             # 停止服務
+Start-Service SysinfoAPI            # 啟動服務
 ```
