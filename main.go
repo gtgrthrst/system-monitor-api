@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/kardianos/service"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
@@ -174,8 +175,8 @@ type HostInfo struct {
 }
 
 type CPUInfo struct {
-	Cores       int       `json:"cores"`
-	ModelName   string    `json:"model_name"`
+	Cores        int       `json:"cores"`
+	ModelName    string    `json:"model_name"`
 	UsagePercent []float64 `json:"usage_percent"`
 }
 
@@ -194,13 +195,11 @@ type DiskInfo struct {
 }
 
 func getSystemInfo() (*SystemInfo, error) {
-	// Host info
 	hostInfo, err := host.Info()
 	if err != nil {
 		return nil, err
 	}
 
-	// CPU info
 	cpuInfo, err := cpu.Info()
 	if err != nil {
 		return nil, err
@@ -215,14 +214,16 @@ func getSystemInfo() (*SystemInfo, error) {
 		modelName = cpuInfo[0].ModelName
 	}
 
-	// Memory info
 	memInfo, err := mem.VirtualMemory()
 	if err != nil {
 		return nil, err
 	}
 
-	// Disk info
-	diskInfo, err := disk.Usage("/")
+	diskPath := "/"
+	if host, _ := host.Info(); host != nil && host.OS == "windows" {
+		diskPath = "C:"
+	}
+	diskInfo, err := disk.Usage(diskPath)
 	if err != nil {
 		return nil, err
 	}
@@ -256,14 +257,12 @@ func getSystemInfo() (*SystemInfo, error) {
 
 func handleSystemInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-
 	info, err := getSystemInfo()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
-
 	json.NewEncoder(w).Encode(info)
 }
 
@@ -277,11 +276,41 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(dashboardHTML))
 }
 
-func main() {
+// Service wrapper for Windows service support
+type program struct{}
+
+func (p *program) Start(s service.Service) error {
+	go p.run()
+	return nil
+}
+
+func (p *program) run() {
 	http.HandleFunc("/", handleDashboard)
 	http.HandleFunc("/api/system", handleSystemInfo)
 	http.HandleFunc("/health", handleHealth)
-
 	log.Println("Server starting on :8088...")
-	log.Fatal(http.ListenAndServe(":8088", nil))
+	http.ListenAndServe(":8088", nil)
+}
+
+func (p *program) Stop(s service.Service) error {
+	return nil
+}
+
+func main() {
+	svcConfig := &service.Config{
+		Name:        "SysinfoAPI",
+		DisplayName: "System Monitor API",
+		Description: "System Monitor API Service",
+	}
+
+	prg := &program{}
+	s, err := service.New(prg, svcConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = s.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
