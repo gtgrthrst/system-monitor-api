@@ -12,16 +12,9 @@ curl -fsSL https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/i
 
 ### Windows (MSI 安裝程式)
 
-下載並執行：[sysinfo-api.msi](https://github.com/gtgrthrst/system-monitor-api/raw/main/sysinfo-api.msi)
-
-- 自動安裝為 Windows 服務
-- 開機自動啟動
-
-### Windows (PowerShell)
-
-```powershell
-irm https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.ps1 | iex
-```
+從 [Releases](https://github.com/gtgrthrst/system-monitor-api/releases/latest) 下載：
+- [sysinfo-api.msi](https://github.com/gtgrthrst/system-monitor-api/releases/latest/download/sysinfo-api.msi) - 自動安裝為 Windows 服務
+- [sysinfo-api-windows-amd64.exe](https://github.com/gtgrthrst/system-monitor-api/releases/latest/download/sysinfo-api-windows-amd64.exe) - 獨立執行檔
 
 ## 端點
 

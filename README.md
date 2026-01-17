@@ -14,16 +14,9 @@ curl -fsSL https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/i
 
 ### Windows (MSI Installer)
 
-Download and run: [sysinfo-api.msi](https://github.com/gtgrthrst/system-monitor-api/raw/main/sysinfo-api.msi)
-
-- Auto-installs as Windows Service
-- Auto-starts on boot
-
-### Windows (PowerShell)
-
-```powershell
-irm https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.ps1 | iex
-```
+Download from [Releases](https://github.com/gtgrthrst/system-monitor-api/releases/latest):
+- [sysinfo-api.msi](https://github.com/gtgrthrst/system-monitor-api/releases/latest/download/sysinfo-api.msi) - Auto-installs as Windows Service
+- [sysinfo-api-windows-amd64.exe](https://github.com/gtgrthrst/system-monitor-api/releases/latest/download/sysinfo-api-windows-amd64.exe) - Standalone executable
 
 ## Endpoints
 
