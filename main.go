@@ -33,6 +33,14 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 .bar-cpu { background: linear-gradient(90deg, #0a0, #0f0); }
 .bar-mem { background: linear-gradient(90deg, #a0a, #f0f); }
 .bar-disk { background: linear-gradient(90deg, #aa0, #ff0); }
+.bar-temp { background: linear-gradient(90deg, #a00, #f00); }
+.temp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.temp-item { background: #1a1a1a; padding: 8px; border-radius: 3px; }
+.temp-value { font-size: 18px; font-weight: bold; }
+.temp-cold { color: #0af; }
+.temp-normal { color: #0f0; }
+.temp-warm { color: #fa0; }
+.temp-hot { color: #f00; }
 .bar-text { margin-top: 2px; font-size: 12px; color: #666; }
 .cpu-cores { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
 .core { background: #1a1a1a; padding: 8px; border-radius: 3px; }
@@ -145,7 +153,17 @@ function update() {
       '<div class="section"><div class="section-title">DISK /</div>' +
       '<div class="row"><span class="label">Used</span><span class="value">' + formatBytes(d.disk.used_bytes) + ' / ' + formatBytes(d.disk.total_bytes) + '</span></div>' +
       '<div class="bar-container"><div class="bar bar-disk" style="width:' + d.disk.used_percent + '%"></div></div>' +
-      '<div class="bar-text">' + d.disk.used_percent.toFixed(1) + '% used</div></div>';
+      '<div class="bar-text">' + d.disk.used_percent.toFixed(1) + '% used</div></div>' +
+      (d.temperature && d.temperature.length > 0 ?
+        '<div class="section"><div class="section-title">TEMPERATURE</div><div class="temp-grid">' +
+        d.temperature.map(t => {
+          let cls = 'temp-normal';
+          if (t.temperature < 30) cls = 'temp-cold';
+          else if (t.temperature > 70) cls = 'temp-hot';
+          else if (t.temperature > 50) cls = 'temp-warm';
+          return '<div class="temp-item"><div class="row"><span class="label">' + t.name + '</span></div>' +
+            '<div class="temp-value ' + cls + '">' + t.temperature.toFixed(1) + '°C</div></div>';
+        }).join('') + '</div></div>' : '');
 
     // Draw charts after DOM update
     setTimeout(() => {
@@ -161,10 +179,16 @@ setInterval(update, 2000);
 </html>`
 
 type SystemInfo struct {
-	Host   HostInfo   `json:"host"`
-	CPU    CPUInfo    `json:"cpu"`
-	Memory MemoryInfo `json:"memory"`
-	Disk   DiskInfo   `json:"disk"`
+	Host        HostInfo      `json:"host"`
+	CPU         CPUInfo       `json:"cpu"`
+	Memory      MemoryInfo    `json:"memory"`
+	Disk        DiskInfo      `json:"disk"`
+	Temperature []TempInfo    `json:"temperature"`
+}
+
+type TempInfo struct {
+	Name        string  `json:"name"`
+	Temperature float64 `json:"temperature"`
 }
 
 type HostInfo struct {
@@ -220,12 +244,24 @@ func getSystemInfo() (*SystemInfo, error) {
 	}
 
 	diskPath := "/"
-	if host, _ := host.Info(); host != nil && host.OS == "windows" {
+	if hostInfo.OS == "windows" {
 		diskPath = "C:"
 	}
 	diskInfo, err := disk.Usage(diskPath)
 	if err != nil {
 		return nil, err
+	}
+
+	// Temperature sensors
+	var temps []TempInfo
+	sensors, _ := host.SensorsTemperatures()
+	for _, s := range sensors {
+		if s.Temperature > 0 {
+			temps = append(temps, TempInfo{
+				Name:        s.SensorKey,
+				Temperature: s.Temperature,
+			})
+		}
 	}
 
 	return &SystemInfo{
@@ -252,6 +288,7 @@ func getSystemInfo() (*SystemInfo, error) {
 			Free:        diskInfo.Free,
 			UsedPercent: diskInfo.UsedPercent,
 		},
+		Temperature: temps,
 	}, nil
 }
 
