@@ -2,6 +2,7 @@
 
 使用 Go 和 gopsutil 建立的簡易系統監控 JSON API。
 
+
 ## 安裝
 
 ### Linux
@@ -9,13 +10,14 @@
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.sh | sudo bash
 ```
+<img width="818" height="866" alt="Snipaste_2026-01-17_21-47-35" src="https://github.com/user-attachments/assets/b84004a9-ae34-4241-90eb-33b1f963719e" />
 
 ### Windows (MSI 安裝程式)
 
 從 [Releases](https://github.com/gtgrthrst/system-monitor-api/releases/latest) 下載：
 - [sysinfo-api.msi](https://github.com/gtgrthrst/system-monitor-api/releases/latest/download/sysinfo-api.msi) - 自動安裝為 Windows 服務
 - [sysinfo-api-windows-amd64.exe](https://github.com/gtgrthrst/system-monitor-api/releases/latest/download/sysinfo-api-windows-amd64.exe) - 獨立執行檔
-
+<img width="834" height="731" alt="Snipaste_2026-01-17_21-47-14" src="https://github.com/user-attachments/assets/8308422d-8cf8-41c9-b1f5-6bfe1f423b97" />
 ## 端點
 
 | 端點 | 說明 |
