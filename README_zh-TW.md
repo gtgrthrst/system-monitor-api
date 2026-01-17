@@ -10,18 +10,17 @@
 curl -fsSL https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.sh | sudo bash
 ```
 
-### Windows
+### Windows (MSI 安裝程式)
 
-以系統管理員身分執行 PowerShell：
+下載並執行：[sysinfo-api.msi](https://github.com/gtgrthrst/system-monitor-api/raw/main/sysinfo-api.msi)
+
+- 自動安裝為 Windows 服務
+- 開機自動啟動
+
+### Windows (PowerShell)
 
 ```powershell
 irm https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.ps1 | iex
-```
-
-或下載後手動執行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 ## 端點

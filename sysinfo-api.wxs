@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="System Monitor API"
+           Language="1033"
+           Version="1.0.0"
+           Manufacturer="SysInfo"
+           UpgradeCode="A478BE7E-012A-4498-A727-9521C6B4411D">
+
+    <Package InstallerVersion="300"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Description="System Monitor API Service"
+             Comments="A simple system monitoring API" />
+
+    <Media Id="1" Cabinet="sysinfo.cab" EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLDIR" Name="SysinfoAPI">
+          <Component Id="MainExecutable" Guid="B5A9E8C1-1234-5678-9ABC-DEF012345678">
+            <File Id="SysinfoAPIExe"
+                  Name="sysinfo-api.exe"
+                  Source="sysinfo-api-windows-amd64.exe"
+                  KeyPath="yes" />
+            <ServiceInstall Id="SysinfoAPIService"
+                           Name="SysinfoAPI"
+                           DisplayName="System Monitor API"
+                           Description="System Monitor API Service"
+                           Start="auto"
+                           Type="ownProcess"
+                           ErrorControl="normal" />
+            <ServiceControl Id="StartSysinfoAPIService"
+                           Name="SysinfoAPI"
+                           Start="install"
+                           Stop="both"
+                           Remove="uninstall"
+                           Wait="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="MainFeature" Title="System Monitor API" Level="1">
+      <ComponentRef Id="MainExecutable" />
+    </Feature>
+
+  </Product>
+</Wix>

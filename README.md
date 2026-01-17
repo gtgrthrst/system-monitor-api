@@ -12,18 +12,17 @@ A simple JSON API for system monitoring using Go and gopsutil.
 curl -fsSL https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.sh | sudo bash
 ```
 
-### Windows
+### Windows (MSI Installer)
 
-Run PowerShell as Administrator:
+Download and run: [sysinfo-api.msi](https://github.com/gtgrthrst/system-monitor-api/raw/main/sysinfo-api.msi)
+
+- Auto-installs as Windows Service
+- Auto-starts on boot
+
+### Windows (PowerShell)
 
 ```powershell
 irm https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/install.ps1 | iex
-```
-
-Or download and run manually:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 ## Endpoints
