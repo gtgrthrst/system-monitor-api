@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
+	"sync"
+	"time"
 
 	"github.com/kardianos/service"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -11,6 +14,70 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 )
+
+// History configuration - optimized for low resource usage
+const (
+	historyInterval = 10 * time.Second // Collect every 10 seconds
+	historyMaxSize  = 360              // 1 hour of data (360 * 10s = 3600s)
+)
+
+// HistoryPoint stores minimal data for each time point
+type HistoryPoint struct {
+	Timestamp  int64   `json:"ts"`          // Unix timestamp
+	CPUPercent float64 `json:"cpu"`         // CPU average %
+	MemPercent float64 `json:"mem"`         // Memory %
+	DiskPercent float64 `json:"disk"`       // Disk %
+}
+
+// RingBuffer is a fixed-size circular buffer for history data
+type RingBuffer struct {
+	data  []HistoryPoint
+	head  int
+	count int
+	mu    sync.RWMutex
+}
+
+func NewRingBuffer(size int) *RingBuffer {
+	return &RingBuffer{
+		data: make([]HistoryPoint, size),
+	}
+}
+
+func (rb *RingBuffer) Push(p HistoryPoint) {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	rb.data[rb.head] = p
+	rb.head = (rb.head + 1) % len(rb.data)
+	if rb.count < len(rb.data) {
+		rb.count++
+	}
+}
+
+func (rb *RingBuffer) GetAll() []HistoryPoint {
+	rb.mu.RLock()
+	defer rb.mu.RUnlock()
+	result := make([]HistoryPoint, rb.count)
+	for i := 0; i < rb.count; i++ {
+		idx := (rb.head - rb.count + i + len(rb.data)) % len(rb.data)
+		result[i] = rb.data[idx]
+	}
+	return result
+}
+
+func (rb *RingBuffer) GetSince(since int64) []HistoryPoint {
+	rb.mu.RLock()
+	defer rb.mu.RUnlock()
+	var result []HistoryPoint
+	for i := 0; i < rb.count; i++ {
+		idx := (rb.head - rb.count + i + len(rb.data)) % len(rb.data)
+		if rb.data[idx].Timestamp >= since {
+			result = append(result, rb.data[idx])
+		}
+	}
+	return result
+}
+
+var historyBuffer = NewRingBuffer(historyMaxSize)
 
 const dashboardHTML = `<!DOCTYPE html>
 <html>
@@ -308,6 +375,59 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+// handleHistory returns historical data
+// Query params: minutes (default: 60, max: 60)
+func handleHistory(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	minutes := 60
+	if m := r.URL.Query().Get("minutes"); m != "" {
+		if v, err := strconv.Atoi(m); err == nil && v > 0 && v <= 60 {
+			minutes = v
+		}
+	}
+
+	since := time.Now().Add(-time.Duration(minutes) * time.Minute).Unix()
+	data := historyBuffer.GetSince(since)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"interval_seconds": int(historyInterval.Seconds()),
+		"max_minutes":      60,
+		"requested_minutes": minutes,
+		"count":            len(data),
+		"data":             data,
+	})
+}
+
+// collectHistory runs in background to collect system metrics
+func collectHistory() {
+	ticker := time.NewTicker(historyInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		info, err := getSystemInfo()
+		if err != nil {
+			continue
+		}
+
+		// Calculate CPU average
+		var cpuAvg float64
+		if len(info.CPU.UsagePercent) > 0 {
+			for _, v := range info.CPU.UsagePercent {
+				cpuAvg += v
+			}
+			cpuAvg /= float64(len(info.CPU.UsagePercent))
+		}
+
+		historyBuffer.Push(HistoryPoint{
+			Timestamp:   time.Now().Unix(),
+			CPUPercent:  cpuAvg,
+			MemPercent:  info.Memory.UsedPercent,
+			DiskPercent: info.Disk.UsedPercent,
+		})
+	}
+}
+
 func handleDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(dashboardHTML))
@@ -322,10 +442,15 @@ func (p *program) Start(s service.Service) error {
 }
 
 func (p *program) run() {
+	// Start history collector in background
+	go collectHistory()
+
 	http.HandleFunc("/", handleDashboard)
 	http.HandleFunc("/api/system", handleSystemInfo)
+	http.HandleFunc("/api/history", handleHistory)
 	http.HandleFunc("/health", handleHealth)
 	log.Println("Server starting on :8088...")
+	log.Printf("History: collecting every %v, max %d points (1 hour)\n", historyInterval, historyMaxSize)
 	http.ListenAndServe(":8088", nil)
 }
 
