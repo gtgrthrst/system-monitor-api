@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/process"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -448,7 +450,7 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
     </div>
   </div>
 </div>
-<div class="update-time">Refresh: 2s | History: 60 points</div>
+<div class="update-time"><a href="/processes" style="color:#0af;text-decoration:none">View Processes →</a> | Refresh: 2s | History: 60 points</div>
 </div>
 <script>
 const MAX_POINTS = 60;
@@ -690,6 +692,65 @@ type DiskInfo struct {
 	Used        uint64  `json:"used_bytes"`
 	Free        uint64  `json:"free_bytes"`
 	UsedPercent float64 `json:"used_percent"`
+}
+
+// ProcessInfo represents information about a single process
+type ProcessInfo struct {
+	PID        int32   `json:"pid"`
+	Name       string  `json:"name"`
+	CPUPercent float64 `json:"cpu_percent"`
+	MemPercent float32 `json:"mem_percent"`
+	Status     string  `json:"status"`
+	Username   string  `json:"username"`
+}
+
+// ProcessListResponse is the API response for process list
+type ProcessListResponse struct {
+	Total      int           `json:"total"`
+	Page       int           `json:"page"`
+	Limit      int           `json:"limit"`
+	TotalPages int           `json:"total_pages"`
+	Timestamp  int64         `json:"timestamp"`
+	Processes  []ProcessInfo `json:"processes"`
+}
+
+// getProcessList returns a list of processes sorted by CPU usage
+func getProcessList() ([]ProcessInfo, error) {
+	procs, err := process.Processes()
+	if err != nil {
+		return nil, err
+	}
+
+	var processList []ProcessInfo
+	for _, p := range procs {
+		name, _ := p.Name()
+		cpuPercent, _ := p.CPUPercent()
+		memPercent, _ := p.MemoryPercent()
+		status, _ := p.Status()
+		username, _ := p.Username()
+
+		// Convert status slice to string
+		statusStr := "unknown"
+		if len(status) > 0 {
+			statusStr = status[0]
+		}
+
+		processList = append(processList, ProcessInfo{
+			PID:        p.Pid,
+			Name:       name,
+			CPUPercent: cpuPercent,
+			MemPercent: memPercent,
+			Status:     statusStr,
+			Username:   username,
+		})
+	}
+
+	// Sort by CPU usage descending
+	sort.Slice(processList, func(i, j int) bool {
+		return processList[i].CPUPercent > processList[j].CPUPercent
+	})
+
+	return processList, nil
 }
 
 func getSystemInfo() (*SystemInfo, error) {
@@ -997,6 +1058,193 @@ func handleMQTTStatus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleProcessesAPI returns the list of processes as JSON
+func handleProcessesAPI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Parse pagination parameters
+	query := r.URL.Query()
+	page := 1
+	limit := 50
+
+	if p := query.Get("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			page = v
+		}
+	}
+	if l := query.Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 200 {
+			limit = v
+		}
+	}
+
+	processList, err := getProcessList()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	total := len(processList)
+	totalPages := (total + limit - 1) / limit
+
+	// Calculate offset
+	offset := (page - 1) * limit
+	end := offset + limit
+	if offset > total {
+		offset = total
+	}
+	if end > total {
+		end = total
+	}
+
+	response := ProcessListResponse{
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+		Timestamp:  time.Now().Unix(),
+		Processes:  processList[offset:end],
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+const processesPageHTML = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Process Monitor</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a0a; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px; padding: 20px; }
+.container { max-width: 1000px; margin: 0 auto; }
+h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; font-size: 18px; }
+.section { background: #111; border: 1px solid #333; margin-bottom: 15px; padding: 15px; border-radius: 4px; }
+.section-title { color: #0af; font-weight: bold; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.stats { color: #666; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 8px; text-align: left; border-bottom: 1px solid #222; }
+th { color: #0af; font-weight: bold; background: #1a1a1a; }
+td { color: #0f0; }
+tr:hover { background: #1a1a1a; }
+.pid { color: #888; }
+.name { color: #0f0; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cpu { color: #ff0; }
+.mem { color: #f0f; }
+.status { color: #0af; }
+.user { color: #888; }
+.high-cpu { color: #f00; }
+.pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 15px; }
+.page-btn { background: #222; color: #0af; border: 1px solid #444; padding: 8px 16px; border-radius: 3px; cursor: pointer; font-family: inherit; }
+.page-btn:hover:not(:disabled) { background: #333; border-color: #0af; }
+.page-btn:disabled { color: #444; cursor: not-allowed; }
+.page-info { color: #666; }
+.back-link { color: #0af; text-decoration: none; }
+.back-link:hover { text-decoration: underline; }
+.footer { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; color: #444; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>[ Process Monitor ]</h1>
+<div class="section">
+  <div class="section-title">
+    <span>PROCESSES</span>
+    <span class="stats">Total: <span id="total">-</span> processes</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>PID</th>
+        <th>NAME</th>
+        <th>CPU%</th>
+        <th>MEM%</th>
+        <th>STATUS</th>
+        <th>USER</th>
+      </tr>
+    </thead>
+    <tbody id="process-list">
+      <tr><td colspan="6" style="text-align:center;color:#666">Loading...</td></tr>
+    </tbody>
+  </table>
+  <div class="pagination">
+    <button class="page-btn" id="prev-btn" onclick="prevPage()">← Prev</button>
+    <span class="page-info">Page <span id="current-page">1</span> / <span id="total-pages">1</span></span>
+    <button class="page-btn" id="next-btn" onclick="nextPage()">Next →</button>
+  </div>
+</div>
+<div class="footer">
+  <a href="/" class="back-link">← Back to Dashboard</a>
+  <span>Refresh: 2s</span>
+</div>
+</div>
+<script>
+let currentPage = 1;
+let totalPages = 1;
+const limit = 50;
+
+function loadProcesses() {
+  fetch('/api/processes?page=' + currentPage + '&limit=' + limit)
+    .then(r => r.json())
+    .then(data => {
+      totalPages = data.total_pages;
+      document.getElementById('total').textContent = data.total;
+      document.getElementById('current-page').textContent = data.page;
+      document.getElementById('total-pages').textContent = data.total_pages;
+      document.getElementById('prev-btn').disabled = currentPage <= 1;
+      document.getElementById('next-btn').disabled = currentPage >= totalPages;
+
+      const tbody = document.getElementById('process-list');
+      if (data.processes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#666">No processes</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.processes.map(p => {
+        const cpuClass = p.cpu_percent > 50 ? 'high-cpu' : 'cpu';
+        return '<tr>' +
+          '<td class="pid">' + p.pid + '</td>' +
+          '<td class="name" title="' + p.name + '">' + p.name + '</td>' +
+          '<td class="' + cpuClass + '">' + p.cpu_percent.toFixed(1) + '%</td>' +
+          '<td class="mem">' + p.mem_percent.toFixed(1) + '%</td>' +
+          '<td class="status">' + p.status + '</td>' +
+          '<td class="user">' + (p.username || '-') + '</td>' +
+          '</tr>';
+      }).join('');
+    })
+    .catch(e => {
+      document.getElementById('process-list').innerHTML = '<tr><td colspan="6" style="color:red">Error: ' + e + '</td></tr>';
+    });
+}
+
+function prevPage() {
+  if (currentPage > 1) {
+    currentPage--;
+    loadProcesses();
+  }
+}
+
+function nextPage() {
+  if (currentPage < totalPages) {
+    currentPage++;
+    loadProcesses();
+  }
+}
+
+loadProcesses();
+setInterval(loadProcesses, 2000);
+</script>
+</body>
+</html>`
+
+// handleProcessesPage serves the processes HTML page
+func handleProcessesPage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(processesPageHTML))
+}
+
 // collectHistory runs in background to collect system metrics
 func collectHistory() {
 	ticker := time.NewTicker(historyInterval)
@@ -1073,6 +1321,8 @@ func (p *program) run() {
 	http.HandleFunc("/api/history/stats", handleHistoryStats)
 	http.HandleFunc("/api/mqtt/config", handleMQTTConfig)
 	http.HandleFunc("/api/mqtt/status", handleMQTTStatus)
+	http.HandleFunc("/processes", handleProcessesPage)
+	http.HandleFunc("/api/processes", handleProcessesAPI)
 	http.HandleFunc("/health", handleHealth)
 	log.Println("Server starting on :8088...")
 	log.Printf("History: collecting every %v, memory buffer %d points, persistent storage enabled\n", historyInterval, historyMaxSize)

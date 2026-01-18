@@ -16,8 +16,10 @@ Single-file Go HTTP API that exposes system metrics using gopsutil v3 with SQLit
 
 **Endpoints:**
 - `GET /` - Real-time web dashboard with MQTT settings
+- `GET /processes` - Process monitor page with pagination
 - `GET /health` - Health check, returns `{"status": "ok"}`
 - `GET /api/system` - Returns current system info (host, CPU, memory, disk, temperature)
+- `GET /api/processes` - Process list with pagination (?page=1&limit=50)
 - `GET /api/history` - Query historical data with time range and CSV export support
 - `GET /api/history/stats` - Historical data statistics
 - `GET /api/mqtt/config` - Get MQTT configuration (password masked)

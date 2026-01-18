@@ -7,6 +7,7 @@ A lightweight, cross-platform system monitoring API with real-time web dashboard
 ## Features
 
 - **Real-time Dashboard** - Terminal-style web UI with live updates every 2 seconds
+- **Process Monitor** - View all running processes with CPU/memory usage, pagination support
 - **Trend Charts** - CPU and memory usage history visualization (60 data points)
 - **Temperature Monitoring** - Color-coded sensor temperature display
 - **History API** - Query any time range with CSV export support
@@ -66,8 +67,10 @@ http://localhost:8088/
 | Endpoint | Description |
 |----------|-------------|
 | `GET /` | Web dashboard with real-time monitoring and MQTT settings |
+| `GET /processes` | Process monitor page with pagination |
 | `GET /health` | Health check endpoint |
 | `GET /api/system` | JSON API for system information |
+| `GET /api/processes` | Process list API with pagination |
 | `GET /api/history` | Historical data query (supports any time range) |
 | `GET /api/history/stats` | Historical data statistics |
 | `GET /api/mqtt/config` | Get MQTT configuration |
@@ -201,6 +204,49 @@ curl "http://localhost:8088/api/history/stats"
 | Green | 30-50°C | Normal |
 | Orange | 50-70°C | Warm |
 | Red | > 70°C | Hot |
+
+## Process Monitor
+
+A dedicated page for viewing all running processes, accessible at `/processes`.
+
+### Features
+
+- View all system processes sorted by CPU usage
+- Pagination support (50 processes per page)
+- Auto-refresh every 2 seconds
+- Displays: PID, Name, CPU%, Memory%, Status, User
+
+### Process API
+
+```
+GET /api/processes?page=1&limit=50
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `page` | 1 | Page number |
+| `limit` | 50 | Processes per page (max 200) |
+
+**Response:**
+```json
+{
+  "total": 156,
+  "page": 1,
+  "limit": 50,
+  "total_pages": 4,
+  "timestamp": 1737200000,
+  "processes": [
+    {
+      "pid": 1234,
+      "name": "chrome",
+      "cpu_percent": 25.3,
+      "mem_percent": 12.5,
+      "status": "running",
+      "username": "root"
+    }
+  ]
+}
+```
 
 ## MQTT Integration
 

@@ -7,6 +7,7 @@
 ## 功能特色
 
 - **即時儀表板** - 終端機風格 Web 介面，每 2 秒自動更新
+- **程序監控** - 檢視所有執行中的程序，支援分頁瀏覽
 - **趨勢圖表** - CPU 和記憶體使用率歷史視覺化（60 個數據點）
 - **溫度監控** - 彩色標示的感測器溫度顯示
 - **歷史資料 API** - 查詢任意時段的歷史資料，支援 CSV 下載
@@ -66,8 +67,10 @@ http://localhost:8088/
 | 端點 | 說明 |
 |------|------|
 | `GET /` | 即時監控 Web 儀表板（含 MQTT 設定） |
+| `GET /processes` | 程序監控頁面（支援分頁） |
 | `GET /health` | 健康檢查端點 |
 | `GET /api/system` | 系統資訊 JSON API |
+| `GET /api/processes` | 程序列表 API（支援分頁） |
 | `GET /api/history` | 歷史資料查詢（支援任意時段） |
 | `GET /api/history/stats` | 歷史資料統計資訊 |
 | `GET /api/mqtt/config` | 取得 MQTT 設定 |
@@ -201,6 +204,49 @@ curl "http://localhost:8088/api/history/stats"
 | 綠色 | 30-50°C | 正常 |
 | 橙色 | 50-70°C | 偏高 |
 | 紅色 | > 70°C | 過熱 |
+
+## 程序監控
+
+獨立頁面可檢視所有執行中的程序，路徑為 `/processes`。
+
+### 功能
+
+- 依 CPU 使用率排序顯示所有系統程序
+- 支援分頁瀏覽（每頁 50 筆）
+- 每 2 秒自動更新
+- 顯示欄位：PID、名稱、CPU%、記憶體%、狀態、使用者
+
+### 程序 API
+
+```
+GET /api/processes?page=1&limit=50
+```
+
+| 參數 | 預設值 | 說明 |
+|------|--------|------|
+| `page` | 1 | 頁碼 |
+| `limit` | 50 | 每頁筆數（最大 200） |
+
+**回應範例：**
+```json
+{
+  "total": 156,
+  "page": 1,
+  "limit": 50,
+  "total_pages": 4,
+  "timestamp": 1737200000,
+  "processes": [
+    {
+      "pid": 1234,
+      "name": "chrome",
+      "cpu_percent": 25.3,
+      "mem_percent": 12.5,
+      "status": "running",
+      "username": "root"
+    }
+  ]
+}
+```
 
 ## MQTT 整合
 
