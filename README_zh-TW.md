@@ -21,9 +21,12 @@
 
 ### Linux 儀表板
 <img width="818" alt="Linux Dashboard" src="https://github.com/user-attachments/assets/b84004a9-ae34-4241-90eb-33b1f963719e" />
+<img width="800" height="400" alt="image" src="https://github.com/user-attachments/assets/1a003bd2-ae58-4b29-aee7-41318cacc61a" />
 
 ### Windows 儀表板
 <img width="834" alt="Windows Dashboard" src="https://github.com/user-attachments/assets/8308422d-8cf8-41c9-b1f5-6bfe1f423b97" />
+
+<img width="800" height="400" alt="image" src="https://github.com/user-attachments/assets/b730840a-6d49-4611-a607-40b3395e1357" />
 
 ## 安裝
 
