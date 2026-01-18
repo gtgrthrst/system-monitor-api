@@ -21,10 +21,11 @@ A lightweight, cross-platform system monitoring API with real-time web dashboard
 
 ### Linux Dashboard
 <img width="600" alt="Linux Dashboard" src="https://github.com/user-attachments/assets/4fdb7c02-8818-495c-83a2-499c10b339bd" />
+<img width="800" height="400" alt="image" src="https://github.com/user-attachments/assets/1a003bd2-ae58-4b29-aee7-41318cacc61a" />
 
 ### Windows Dashboard
 <img width="600" alt="Windows Dashboard" src="https://github.com/user-attachments/assets/8308422d-8cf8-41c9-b1f5-6bfe1f423b97" />
-
+<img width="800" height="400" alt="image" src="https://github.com/user-attachments/assets/b730840a-6d49-4611-a607-40b3395e1357" />
 ## Installation
 
 ### Linux (One-line Install)
