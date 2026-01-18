@@ -1,3 +1,5 @@
-# Local builds (not pre-built releases)
-sysinfo-api
-sysinfo-api.exe
+# Database files
+*.db
+
+# Temporary files
+*.tmp
