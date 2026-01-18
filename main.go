@@ -1,9 +1,14 @@
 package main
 
 import (
+	"database/sql"
+	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -13,6 +18,7 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // History configuration - optimized for low resource usage
@@ -78,6 +84,109 @@ func (rb *RingBuffer) GetSince(since int64) []HistoryPoint {
 }
 
 var historyBuffer = NewRingBuffer(historyMaxSize)
+
+// Database for persistent history storage
+var db *sql.DB
+var dbMutex sync.Mutex
+
+// getDataDir returns the directory for storing data files
+func getDataDir() string {
+	// Try to use the directory where the executable is located
+	exe, err := os.Executable()
+	if err == nil {
+		return filepath.Dir(exe)
+	}
+	// Fallback to current directory
+	return "."
+}
+
+// initDB initializes the SQLite database
+func initDB() error {
+	dbPath := filepath.Join(getDataDir(), "sysinfo_history.db")
+	var err error
+	db, err = sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Create table if not exists
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS history (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		timestamp INTEGER NOT NULL,
+		cpu_percent REAL NOT NULL,
+		mem_percent REAL NOT NULL,
+		disk_percent REAL NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp);
+	`
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create table: %w", err)
+	}
+
+	log.Printf("Database initialized: %s\n", dbPath)
+	return nil
+}
+
+// saveHistoryToDB saves a history point to the database
+func saveHistoryToDB(p HistoryPoint) error {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
+	if db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+
+	_, err := db.Exec(
+		"INSERT INTO history (timestamp, cpu_percent, mem_percent, disk_percent) VALUES (?, ?, ?, ?)",
+		p.Timestamp, p.CPUPercent, p.MemPercent, p.DiskPercent,
+	)
+	return err
+}
+
+// queryHistoryFromDB queries history from database with time range
+func queryHistoryFromDB(startTime, endTime int64) ([]HistoryPoint, error) {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
+	if db == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+
+	rows, err := db.Query(
+		"SELECT timestamp, cpu_percent, mem_percent, disk_percent FROM history WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC",
+		startTime, endTime,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []HistoryPoint
+	for rows.Next() {
+		var p HistoryPoint
+		if err := rows.Scan(&p.Timestamp, &p.CPUPercent, &p.MemPercent, &p.DiskPercent); err != nil {
+			return nil, err
+		}
+		result = append(result, p)
+	}
+	return result, nil
+}
+
+// getHistoryStats returns statistics about stored history
+func getHistoryStats() (minTime, maxTime int64, count int64, err error) {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
+	if db == nil {
+		return 0, 0, 0, fmt.Errorf("database not initialized")
+	}
+
+	err = db.QueryRow("SELECT COALESCE(MIN(timestamp), 0), COALESCE(MAX(timestamp), 0), COUNT(*) FROM history").Scan(&minTime, &maxTime, &count)
+	return
+}
 
 const dashboardHTML = `<!DOCTYPE html>
 <html>
@@ -376,26 +485,124 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHistory returns historical data
-// Query params: minutes (default: 60, max: 60)
+// Query params:
+//   - minutes: for recent data (default: 60, uses memory buffer for <=60 min)
+//   - start: Unix timestamp for range start
+//   - end: Unix timestamp for range end (default: now)
+//   - format: "json" (default) or "csv"
 func handleHistory(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	query := r.URL.Query()
+	format := query.Get("format")
+	if format == "" {
+		format = "json"
+	}
 
-	minutes := 60
-	if m := r.URL.Query().Get("minutes"); m != "" {
-		if v, err := strconv.Atoi(m); err == nil && v > 0 && v <= 60 {
-			minutes = v
+	var data []HistoryPoint
+	var startTime, endTime int64
+	var useDB bool
+
+	// Check if time range is specified
+	if startStr := query.Get("start"); startStr != "" {
+		startTime, _ = strconv.ParseInt(startStr, 10, 64)
+		endTime = time.Now().Unix()
+		if endStr := query.Get("end"); endStr != "" {
+			endTime, _ = strconv.ParseInt(endStr, 10, 64)
+		}
+		useDB = true
+	} else {
+		// Use minutes parameter (backward compatible)
+		minutes := 60
+		if m := query.Get("minutes"); m != "" {
+			if v, err := strconv.Atoi(m); err == nil && v > 0 {
+				minutes = v
+			}
+		}
+		endTime = time.Now().Unix()
+		startTime = time.Now().Add(-time.Duration(minutes) * time.Minute).Unix()
+
+		// Use memory buffer for recent data (<=60 min), DB for longer periods
+		if minutes <= 60 {
+			data = historyBuffer.GetSince(startTime)
+		} else {
+			useDB = true
 		}
 	}
 
-	since := time.Now().Add(-time.Duration(minutes) * time.Minute).Unix()
-	data := historyBuffer.GetSince(since)
+	// Query from database if needed
+	if useDB {
+		var err error
+		data, err = queryHistoryFromDB(startTime, endTime)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+	}
 
+	// Return CSV format
+	if format == "csv" {
+		w.Header().Set("Content-Type", "text/csv")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=sysinfo_history_%d_%d.csv", startTime, endTime))
+
+		writer := csv.NewWriter(w)
+		// Write header
+		writer.Write([]string{"timestamp", "datetime", "cpu_percent", "mem_percent", "disk_percent"})
+
+		// Write data
+		for _, p := range data {
+			t := time.Unix(p.Timestamp, 0)
+			writer.Write([]string{
+				strconv.FormatInt(p.Timestamp, 10),
+				t.Format("2006-01-02 15:04:05"),
+				fmt.Sprintf("%.2f", p.CPUPercent),
+				fmt.Sprintf("%.2f", p.MemPercent),
+				fmt.Sprintf("%.2f", p.DiskPercent),
+			})
+		}
+		writer.Flush()
+		return
+	}
+
+	// Return JSON format (default)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"interval_seconds": int(historyInterval.Seconds()),
-		"max_minutes":      60,
-		"requested_minutes": minutes,
+		"start_time":       startTime,
+		"end_time":         endTime,
 		"count":            len(data),
 		"data":             data,
+	})
+}
+
+// handleHistoryStats returns statistics about stored history data
+func handleHistoryStats(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	minTime, maxTime, count, err := getHistoryStats()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Calculate time range
+	var durationHours float64
+	var minTimeStr, maxTimeStr string
+	if count > 0 {
+		durationHours = float64(maxTime-minTime) / 3600.0
+		minTimeStr = time.Unix(minTime, 0).Format("2006-01-02 15:04:05")
+		maxTimeStr = time.Unix(maxTime, 0).Format("2006-01-02 15:04:05")
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"total_records":   count,
+		"min_timestamp":   minTime,
+		"max_timestamp":   maxTime,
+		"min_datetime":    minTimeStr,
+		"max_datetime":    maxTimeStr,
+		"duration_hours":  durationHours,
+		"interval_seconds": int(historyInterval.Seconds()),
 	})
 }
 
@@ -419,12 +626,20 @@ func collectHistory() {
 			cpuAvg /= float64(len(info.CPU.UsagePercent))
 		}
 
-		historyBuffer.Push(HistoryPoint{
+		point := HistoryPoint{
 			Timestamp:   time.Now().Unix(),
 			CPUPercent:  cpuAvg,
 			MemPercent:  info.Memory.UsedPercent,
 			DiskPercent: info.Disk.UsedPercent,
-		})
+		}
+
+		// Save to memory buffer (for fast recent queries)
+		historyBuffer.Push(point)
+
+		// Save to database (for persistent long-term storage)
+		if err := saveHistoryToDB(point); err != nil {
+			log.Printf("Failed to save history to DB: %v\n", err)
+		}
 	}
 }
 
@@ -442,19 +657,30 @@ func (p *program) Start(s service.Service) error {
 }
 
 func (p *program) run() {
+	// Initialize database for persistent history storage
+	if err := initDB(); err != nil {
+		log.Printf("Warning: Failed to initialize database: %v\n", err)
+		log.Println("History will only be stored in memory (max 1 hour)")
+	}
+
 	// Start history collector in background
 	go collectHistory()
 
 	http.HandleFunc("/", handleDashboard)
 	http.HandleFunc("/api/system", handleSystemInfo)
 	http.HandleFunc("/api/history", handleHistory)
+	http.HandleFunc("/api/history/stats", handleHistoryStats)
 	http.HandleFunc("/health", handleHealth)
 	log.Println("Server starting on :8088...")
-	log.Printf("History: collecting every %v, max %d points (1 hour)\n", historyInterval, historyMaxSize)
+	log.Printf("History: collecting every %v, memory buffer %d points, persistent storage enabled\n", historyInterval, historyMaxSize)
 	http.ListenAndServe(":8088", nil)
 }
 
 func (p *program) Stop(s service.Service) error {
+	// Close database connection
+	if db != nil {
+		db.Close()
+	}
 	return nil
 }
 

@@ -9,7 +9,8 @@ A lightweight, cross-platform system monitoring API with real-time web dashboard
 - **Real-time Dashboard** - Terminal-style web UI with live updates every 2 seconds
 - **Trend Charts** - CPU and memory usage history visualization (60 data points)
 - **Temperature Monitoring** - Color-coded sensor temperature display
-- **History API** - Query historical data up to 1 hour
+- **History API** - Query any time range with CSV export support
+- **SQLite Persistence** - Historical data permanently stored in database
 - **Cross-platform** - Works on Linux and Windows
 - **Windows Service** - MSI installer with auto-start service support
 - **Low Resource Usage** - Minimal CPU and memory footprint
@@ -66,30 +67,82 @@ http://localhost:8088/
 | `GET /` | Web dashboard with real-time monitoring |
 | `GET /health` | Health check endpoint |
 | `GET /api/system` | JSON API for system information |
-| `GET /api/history` | Historical data (up to 1 hour) |
+| `GET /api/history` | Historical data query (supports any time range) |
+| `GET /api/history/stats` | Historical data statistics |
 
 ### History API
 
 ```
 GET /api/history?minutes=N
+GET /api/history?start=<unix_timestamp>&end=<unix_timestamp>
+GET /api/history?start=<unix_timestamp>&end=<unix_timestamp>&format=csv
 ```
 
-| Parameter | Default | Max | Description |
-|-----------|---------|-----|-------------|
-| `minutes` | 60 | 60 | Query last N minutes of data |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `minutes` | 60 | Query last N minutes of data (no limit) |
+| `start` | - | Start time Unix timestamp |
+| `end` | now | End time Unix timestamp |
+| `format` | json | Output format: `json` or `csv` |
 
-**Response:**
+**Response (JSON):**
 ```json
 {
   "interval_seconds": 10,
-  "max_minutes": 60,
-  "requested_minutes": 30,
+  "start_time": 1768706921,
+  "end_time": 1768708721,
   "count": 180,
   "data": [
     {"ts": 1768708721, "cpu": 45.2, "mem": 60.5, "disk": 29.5},
     ...
   ]
 }
+```
+
+**Response (CSV):**
+```csv
+timestamp,datetime,cpu_percent,mem_percent,disk_percent
+1768708721,2026-01-18 10:30:21,45.20,60.50,29.50
+1768708731,2026-01-18 10:30:31,42.10,60.80,29.50
+...
+```
+
+### History Stats API
+
+```
+GET /api/history/stats
+```
+
+**Response:**
+```json
+{
+  "total_records": 8640,
+  "min_timestamp": 1768622321,
+  "max_timestamp": 1768708721,
+  "min_datetime": "2026-01-17 10:30:21",
+  "max_datetime": "2026-01-18 10:30:21",
+  "duration_hours": 24.0,
+  "interval_seconds": 10
+}
+```
+
+### Usage Examples
+
+```bash
+# Query last 30 minutes
+curl "http://localhost:8088/api/history?minutes=30"
+
+# Query last 24 hours
+curl "http://localhost:8088/api/history?minutes=1440"
+
+# Query specific time range
+curl "http://localhost:8088/api/history?start=1768622321&end=1768708721"
+
+# Download CSV file
+curl -o history.csv "http://localhost:8088/api/history?minutes=60&format=csv"
+
+# View history statistics
+curl "http://localhost:8088/api/history/stats"
 ```
 
 ### System API Response Example

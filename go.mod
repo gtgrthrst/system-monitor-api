@@ -4,6 +4,7 @@ go 1.24.12
 
 require (
 	github.com/kardianos/service v1.2.4
+	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/shirou/gopsutil/v3 v3.24.5
 )
 

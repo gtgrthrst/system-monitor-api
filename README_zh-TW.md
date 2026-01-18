@@ -9,7 +9,8 @@
 - **即時儀表板** - 終端機風格 Web 介面，每 2 秒自動更新
 - **趨勢圖表** - CPU 和記憶體使用率歷史視覺化（60 個數據點）
 - **溫度監控** - 彩色標示的感測器溫度顯示
-- **歷史資料 API** - 查詢最多 1 小時的歷史資料
+- **歷史資料 API** - 查詢任意時段的歷史資料，支援 CSV 下載
+- **SQLite 持久化** - 歷史資料永久保存於資料庫
 - **跨平台支援** - 支援 Linux 和 Windows
 - **Windows 服務** - MSI 安裝程式支援開機自動啟動
 - **低資源消耗** - 極低的 CPU 和記憶體使用量
@@ -66,30 +67,82 @@ http://localhost:8088/
 | `GET /` | 即時監控 Web 儀表板 |
 | `GET /health` | 健康檢查端點 |
 | `GET /api/system` | 系統資訊 JSON API |
-| `GET /api/history` | 歷史資料（最多 1 小時） |
+| `GET /api/history` | 歷史資料查詢（支援任意時段） |
+| `GET /api/history/stats` | 歷史資料統計資訊 |
 
 ### 歷史資料 API
 
 ```
 GET /api/history?minutes=N
+GET /api/history?start=<unix_timestamp>&end=<unix_timestamp>
+GET /api/history?start=<unix_timestamp>&end=<unix_timestamp>&format=csv
 ```
 
-| 參數 | 預設值 | 最大值 | 說明 |
-|------|--------|--------|------|
-| `minutes` | 60 | 60 | 查詢最近 N 分鐘的資料 |
+| 參數 | 預設值 | 說明 |
+|------|--------|------|
+| `minutes` | 60 | 查詢最近 N 分鐘的資料（無上限） |
+| `start` | - | 起始時間 Unix 時間戳 |
+| `end` | 現在 | 結束時間 Unix 時間戳 |
+| `format` | json | 輸出格式：`json` 或 `csv` |
 
-**回應範例：**
+**回應範例（JSON）：**
 ```json
 {
   "interval_seconds": 10,
-  "max_minutes": 60,
-  "requested_minutes": 30,
+  "start_time": 1768706921,
+  "end_time": 1768708721,
   "count": 180,
   "data": [
     {"ts": 1768708721, "cpu": 45.2, "mem": 60.5, "disk": 29.5},
     ...
   ]
 }
+```
+
+**回應範例（CSV）：**
+```csv
+timestamp,datetime,cpu_percent,mem_percent,disk_percent
+1768708721,2026-01-18 10:30:21,45.20,60.50,29.50
+1768708731,2026-01-18 10:30:31,42.10,60.80,29.50
+...
+```
+
+### 歷史統計 API
+
+```
+GET /api/history/stats
+```
+
+**回應範例：**
+```json
+{
+  "total_records": 8640,
+  "min_timestamp": 1768622321,
+  "max_timestamp": 1768708721,
+  "min_datetime": "2026-01-17 10:30:21",
+  "max_datetime": "2026-01-18 10:30:21",
+  "duration_hours": 24.0,
+  "interval_seconds": 10
+}
+```
+
+### 使用範例
+
+```bash
+# 查詢最近 30 分鐘資料
+curl "http://localhost:8088/api/history?minutes=30"
+
+# 查詢最近 24 小時資料
+curl "http://localhost:8088/api/history?minutes=1440"
+
+# 查詢指定時間範圍
+curl "http://localhost:8088/api/history?start=1768622321&end=1768708721"
+
+# 下載 CSV 檔案
+curl -o history.csv "http://localhost:8088/api/history?minutes=60&format=csv"
+
+# 查看歷史資料統計
+curl "http://localhost:8088/api/history/stats"
 ```
 
 ### 系統資訊 API 回應範例
