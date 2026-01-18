@@ -3,3 +3,6 @@
 
 # Temporary files
 *.tmp
+
+# MQTT configuration (contains user credentials)
+mqtt_config.json

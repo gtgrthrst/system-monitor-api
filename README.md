@@ -10,6 +10,7 @@ A lightweight, cross-platform system monitoring API with real-time web dashboard
 - **Trend Charts** - CPU and memory usage history visualization (60 data points)
 - **Temperature Monitoring** - Color-coded sensor temperature display
 - **History API** - Query any time range with CSV export support
+- **MQTT Integration** - Publish metrics to MQTT broker with web UI configuration
 - **SQLite Persistence** - Historical data permanently stored in database
 - **Cross-platform** - Works on Linux and Windows
 - **Windows Service** - MSI installer with auto-start service support
@@ -64,11 +65,14 @@ http://localhost:8088/
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /` | Web dashboard with real-time monitoring |
+| `GET /` | Web dashboard with real-time monitoring and MQTT settings |
 | `GET /health` | Health check endpoint |
 | `GET /api/system` | JSON API for system information |
 | `GET /api/history` | Historical data query (supports any time range) |
 | `GET /api/history/stats` | Historical data statistics |
+| `GET /api/mqtt/config` | Get MQTT configuration |
+| `POST /api/mqtt/config` | Save MQTT configuration |
+| `GET /api/mqtt/status` | Get MQTT connection status |
 
 ### History API
 
@@ -197,6 +201,66 @@ curl "http://localhost:8088/api/history/stats"
 | Green | 30-50°C | Normal |
 | Orange | 50-70°C | Warm |
 | Red | > 70°C | Hot |
+
+## MQTT Integration
+
+The dashboard includes a built-in MQTT settings panel for publishing system metrics to an MQTT broker.
+
+### Configuration
+
+Configure MQTT via the web dashboard or API:
+
+| Field | Description |
+|-------|-------------|
+| **Broker** | MQTT broker address (e.g., `tcp://broker.example.com:1883`) |
+| **Client ID** | Custom device identifier (uses hostname if empty) |
+| **Username** | Optional authentication username |
+| **Password** | Optional authentication password |
+
+### MQTT Message Format
+
+**Topic:** `sysinfo/{client_id}`
+
+**Payload (every 10 seconds):**
+```json
+{
+  "hostname": "my-device",
+  "cpu": 45.2,
+  "mem": 60.5,
+  "disk": 29.5,
+  "timestamp": 1737200000
+}
+```
+
+### MQTT API
+
+```bash
+# Get current configuration
+curl http://localhost:8088/api/mqtt/config
+
+# Save configuration
+curl -X POST http://localhost:8088/api/mqtt/config \
+  -H "Content-Type: application/json" \
+  -d '{"enabled":true,"broker":"tcp://broker:1883","client_id":"my-device","username":"","password":"","topic_prefix":"sysinfo"}'
+
+# Check connection status
+curl http://localhost:8088/api/mqtt/status
+```
+
+### Configuration File
+
+MQTT settings are stored in `mqtt_config.json`:
+
+```json
+{
+  "enabled": true,
+  "broker": "tcp://broker.example.com:1883",
+  "username": "",
+  "password": "",
+  "topic_prefix": "sysinfo",
+  "client_id": "my-device"
+}
+```
 
 ## Manual Build
 

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/kardianos/service"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
@@ -88,6 +89,189 @@ var historyBuffer = NewRingBuffer(historyMaxSize)
 // Database for persistent history storage
 var db *sql.DB
 var dbMutex sync.Mutex
+
+// MQTT configuration and client
+type MQTTConfig struct {
+	Enabled     bool   `json:"enabled"`
+	Broker      string `json:"broker"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	TopicPrefix string `json:"topic_prefix"`
+	ClientID    string `json:"client_id"`
+}
+
+var (
+	mqttConfig  MQTTConfig
+	mqttClient  mqtt.Client
+	mqttMutex   sync.RWMutex
+	mqttConnected bool
+)
+
+// getMQTTConfigPath returns the path to the MQTT config file
+func getMQTTConfigPath() string {
+	return filepath.Join(getDataDir(), "mqtt_config.json")
+}
+
+// loadMQTTConfig loads MQTT configuration from file
+func loadMQTTConfig() error {
+	mqttMutex.Lock()
+	defer mqttMutex.Unlock()
+
+	configPath := getMQTTConfigPath()
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Create default config
+			mqttConfig = MQTTConfig{
+				Enabled:     false,
+				Broker:      "tcp://localhost:1883",
+				TopicPrefix: "sysinfo",
+				ClientID:    "",
+			}
+			return saveMQTTConfigLocked()
+		}
+		return err
+	}
+
+	return json.Unmarshal(data, &mqttConfig)
+}
+
+// saveMQTTConfig saves MQTT configuration to file
+func saveMQTTConfig() error {
+	mqttMutex.Lock()
+	defer mqttMutex.Unlock()
+	return saveMQTTConfigLocked()
+}
+
+// saveMQTTConfigLocked saves config (must hold mqttMutex)
+func saveMQTTConfigLocked() error {
+	configPath := getMQTTConfigPath()
+	data, err := json.MarshalIndent(mqttConfig, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(configPath, data, 0600)
+}
+
+// getEffectiveClientID returns the client ID to use (custom or hostname)
+func getEffectiveClientID() string {
+	mqttMutex.RLock()
+	defer mqttMutex.RUnlock()
+
+	if mqttConfig.ClientID != "" {
+		return mqttConfig.ClientID
+	}
+	hostInfo, err := host.Info()
+	if err != nil {
+		return "unknown"
+	}
+	return hostInfo.Hostname
+}
+
+// connectMQTT establishes connection to MQTT broker
+func connectMQTT() {
+	mqttMutex.Lock()
+	defer mqttMutex.Unlock()
+
+	if !mqttConfig.Enabled {
+		mqttConnected = false
+		return
+	}
+
+	// Disconnect existing client if any
+	if mqttClient != nil && mqttClient.IsConnected() {
+		mqttClient.Disconnect(250)
+	}
+
+	clientID := mqttConfig.ClientID
+	if clientID == "" {
+		hostInfo, _ := host.Info()
+		if hostInfo != nil {
+			clientID = hostInfo.Hostname
+		} else {
+			clientID = "sysinfo-api"
+		}
+	}
+
+	opts := mqtt.NewClientOptions().
+		AddBroker(mqttConfig.Broker).
+		SetClientID(clientID + "-publisher").
+		SetAutoReconnect(true).
+		SetConnectRetry(true).
+		SetConnectRetryInterval(10 * time.Second).
+		SetOnConnectHandler(func(c mqtt.Client) {
+			log.Printf("MQTT connected to %s\n", mqttConfig.Broker)
+			mqttMutex.Lock()
+			mqttConnected = true
+			mqttMutex.Unlock()
+		}).
+		SetConnectionLostHandler(func(c mqtt.Client, err error) {
+			log.Printf("MQTT connection lost: %v\n", err)
+			mqttMutex.Lock()
+			mqttConnected = false
+			mqttMutex.Unlock()
+		})
+
+	if mqttConfig.Username != "" {
+		opts.SetUsername(mqttConfig.Username)
+		opts.SetPassword(mqttConfig.Password)
+	}
+
+	mqttClient = mqtt.NewClient(opts)
+	token := mqttClient.Connect()
+	go func() {
+		if token.Wait() && token.Error() != nil {
+			log.Printf("MQTT connection error: %v\n", token.Error())
+		}
+	}()
+}
+
+// disconnectMQTT closes the MQTT connection
+func disconnectMQTT() {
+	mqttMutex.Lock()
+	defer mqttMutex.Unlock()
+
+	if mqttClient != nil && mqttClient.IsConnected() {
+		mqttClient.Disconnect(250)
+	}
+	mqttConnected = false
+}
+
+// publishMetrics publishes current metrics to MQTT
+func publishMetrics(point HistoryPoint) {
+	mqttMutex.RLock()
+	enabled := mqttConfig.Enabled
+	topicPrefix := mqttConfig.TopicPrefix
+	mqttMutex.RUnlock()
+
+	if !enabled || mqttClient == nil || !mqttClient.IsConnected() {
+		return
+	}
+
+	clientID := getEffectiveClientID()
+	topic := fmt.Sprintf("%s/%s", topicPrefix, clientID)
+
+	payload := map[string]interface{}{
+		"hostname":  clientID,
+		"cpu":       point.CPUPercent,
+		"mem":       point.MemPercent,
+		"disk":      point.DiskPercent,
+		"timestamp": point.Timestamp,
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("MQTT marshal error: %v\n", err)
+		return
+	}
+
+	token := mqttClient.Publish(topic, 0, false, data)
+	go func() {
+		if token.Wait() && token.Error() != nil {
+			log.Printf("MQTT publish error: %v\n", token.Error())
+		}
+	}()
+}
 
 // getDataDir returns the directory for storing data files
 func getDataDir() string {
@@ -223,12 +407,47 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 .update-time { color: #444; font-size: 11px; text-align: right; margin-top: 10px; }
 .chart { background: #0a0a0a; border: 1px solid #333; border-radius: 3px; margin: 10px 0; }
 .chart-label { display: flex; justify-content: space-between; font-size: 11px; color: #555; padding: 0 5px; }
+.mqtt-form { display: grid; gap: 10px; }
+.mqtt-row { display: flex; align-items: center; gap: 10px; }
+.mqtt-row label { width: 100px; color: #888; }
+.mqtt-row input { flex: 1; background: #222; border: 1px solid #444; color: #0f0; padding: 8px; border-radius: 3px; font-family: inherit; }
+.mqtt-row input:focus { outline: none; border-color: #0af; }
+.mqtt-topic { color: #666; font-size: 12px; margin-top: 5px; }
+.mqtt-actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+.mqtt-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.mqtt-toggle input { display: none; }
+.mqtt-toggle .slider { width: 40px; height: 20px; background: #333; border-radius: 10px; position: relative; transition: 0.3s; }
+.mqtt-toggle .slider:before { content: ''; position: absolute; width: 16px; height: 16px; background: #666; border-radius: 50%; top: 2px; left: 2px; transition: 0.3s; }
+.mqtt-toggle input:checked + .slider { background: #0a0; }
+.mqtt-toggle input:checked + .slider:before { left: 22px; background: #0f0; }
+.mqtt-btn { background: #0af; color: #000; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; font-family: inherit; font-weight: bold; }
+.mqtt-btn:hover { background: #0cf; }
+.mqtt-btn:disabled { background: #444; color: #666; cursor: not-allowed; }
+.mqtt-status { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.mqtt-status .dot { width: 10px; height: 10px; border-radius: 50%; }
+.mqtt-status .dot.connected { background: #0f0; box-shadow: 0 0 5px #0f0; }
+.mqtt-status .dot.disconnected { background: #f00; box-shadow: 0 0 5px #f00; }
+.mqtt-status .dot.disabled { background: #666; }
 </style>
 </head>
 <body>
 <div class="container">
 <h1>[ System Monitor ]</h1>
 <div id="content">Loading...</div>
+<div id="mqtt-section" class="section">
+  <div class="section-title">MQTT SETTINGS <span id="mqtt-status-indicator" class="mqtt-status"><span class="dot disabled"></span><span id="mqtt-status-text">Disabled</span></span></div>
+  <div class="mqtt-form">
+    <div class="mqtt-row"><label>Broker</label><input type="text" id="mqtt-broker" placeholder="tcp://broker.example.com:1883"></div>
+    <div class="mqtt-row"><label>Client ID</label><input type="text" id="mqtt-client-id" placeholder="(auto: hostname)"></div>
+    <div class="mqtt-row"><label>Username</label><input type="text" id="mqtt-username" placeholder="(optional)"></div>
+    <div class="mqtt-row"><label>Password</label><input type="password" id="mqtt-password" placeholder="(optional)"></div>
+    <div class="mqtt-topic">Topic: <span id="mqtt-topic-preview">sysinfo/...</span></div>
+    <div class="mqtt-actions">
+      <label class="mqtt-toggle"><input type="checkbox" id="mqtt-enabled"><span class="slider"></span><span>Enable MQTT</span></label>
+      <button class="mqtt-btn" id="mqtt-save">Save Settings</button>
+    </div>
+  </div>
+</div>
 <div class="update-time">Refresh: 2s | History: 60 points</div>
 </div>
 <script>
@@ -350,6 +569,85 @@ function update() {
 }
 update();
 setInterval(update, 2000);
+
+// MQTT Configuration
+let mqttConfig = {};
+let systemHostname = '';
+
+function loadMQTTConfig() {
+  fetch('/api/mqtt/config').then(r => r.json()).then(cfg => {
+    mqttConfig = cfg;
+    document.getElementById('mqtt-broker').value = cfg.broker || '';
+    document.getElementById('mqtt-client-id').value = cfg.client_id || '';
+    document.getElementById('mqtt-username').value = cfg.username || '';
+    document.getElementById('mqtt-password').value = cfg.password === '***' ? '***' : '';
+    document.getElementById('mqtt-enabled').checked = cfg.enabled;
+    updateTopicPreview();
+  });
+}
+
+function loadMQTTStatus() {
+  fetch('/api/mqtt/status').then(r => r.json()).then(st => {
+    const dot = document.querySelector('#mqtt-status-indicator .dot');
+    const text = document.getElementById('mqtt-status-text');
+    dot.className = 'dot ' + st.status;
+    if (st.status === 'connected') {
+      text.textContent = 'Connected';
+    } else if (st.status === 'disconnected') {
+      text.textContent = 'Disconnected';
+    } else {
+      text.textContent = 'Disabled';
+    }
+    document.getElementById('mqtt-topic-preview').textContent = st.topic;
+  });
+}
+
+function updateTopicPreview() {
+  const clientId = document.getElementById('mqtt-client-id').value || systemHostname || '(hostname)';
+  const prefix = 'sysinfo';
+  document.getElementById('mqtt-topic-preview').textContent = prefix + '/' + clientId;
+}
+
+function saveMQTTConfig() {
+  const btn = document.getElementById('mqtt-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  const cfg = {
+    enabled: document.getElementById('mqtt-enabled').checked,
+    broker: document.getElementById('mqtt-broker').value,
+    client_id: document.getElementById('mqtt-client-id').value,
+    username: document.getElementById('mqtt-username').value,
+    password: document.getElementById('mqtt-password').value,
+    topic_prefix: 'sysinfo'
+  };
+
+  fetch('/api/mqtt/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(cfg)
+  }).then(r => r.json()).then(() => {
+    btn.textContent = 'Saved!';
+    setTimeout(() => { btn.textContent = 'Save Settings'; btn.disabled = false; }, 1500);
+    setTimeout(loadMQTTStatus, 1000);
+  }).catch(e => {
+    btn.textContent = 'Error!';
+    setTimeout(() => { btn.textContent = 'Save Settings'; btn.disabled = false; }, 1500);
+  });
+}
+
+// Get system hostname for topic preview
+fetch('/api/system').then(r => r.json()).then(d => {
+  systemHostname = d.host.hostname;
+  updateTopicPreview();
+});
+
+document.getElementById('mqtt-save').addEventListener('click', saveMQTTConfig);
+document.getElementById('mqtt-client-id').addEventListener('input', updateTopicPreview);
+
+loadMQTTConfig();
+loadMQTTStatus();
+setInterval(loadMQTTStatus, 5000);
 </script>
 </body>
 </html>`
@@ -606,6 +904,99 @@ func handleHistoryStats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleMQTTConfig handles GET/POST for MQTT configuration
+func handleMQTTConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		mqttMutex.RLock()
+		config := MQTTConfig{
+			Enabled:     mqttConfig.Enabled,
+			Broker:      mqttConfig.Broker,
+			Username:    mqttConfig.Username,
+			Password:    "",
+			TopicPrefix: mqttConfig.TopicPrefix,
+			ClientID:    mqttConfig.ClientID,
+		}
+		// Mask password if set
+		if mqttConfig.Password != "" {
+			config.Password = "***"
+		}
+		mqttMutex.RUnlock()
+		json.NewEncoder(w).Encode(config)
+
+	case http.MethodPost:
+		var newConfig MQTTConfig
+		if err := json.NewDecoder(r.Body).Decode(&newConfig); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		mqttMutex.Lock()
+		mqttConfig.Enabled = newConfig.Enabled
+		mqttConfig.Broker = newConfig.Broker
+		mqttConfig.Username = newConfig.Username
+		// Only update password if not masked
+		if newConfig.Password != "***" && newConfig.Password != "" {
+			mqttConfig.Password = newConfig.Password
+		} else if newConfig.Password == "" {
+			mqttConfig.Password = ""
+		}
+		mqttConfig.TopicPrefix = newConfig.TopicPrefix
+		mqttConfig.ClientID = newConfig.ClientID
+		mqttMutex.Unlock()
+
+		if err := saveMQTTConfig(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		// Reconnect with new settings
+		go connectMQTT()
+
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{"error": "method not allowed"})
+	}
+}
+
+// handleMQTTStatus returns current MQTT connection status
+func handleMQTTStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	mqttMutex.RLock()
+	enabled := mqttConfig.Enabled
+	broker := mqttConfig.Broker
+	topicPrefix := mqttConfig.TopicPrefix
+	connected := mqttConnected
+	mqttMutex.RUnlock()
+
+	status := "disabled"
+	if enabled {
+		if connected {
+			status = "connected"
+		} else {
+			status = "disconnected"
+		}
+	}
+
+	clientID := getEffectiveClientID()
+	topic := fmt.Sprintf("%s/%s", topicPrefix, clientID)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"enabled":   enabled,
+		"connected": connected,
+		"status":    status,
+		"broker":    broker,
+		"topic":     topic,
+	})
+}
+
 // collectHistory runs in background to collect system metrics
 func collectHistory() {
 	ticker := time.NewTicker(historyInterval)
@@ -640,6 +1031,9 @@ func collectHistory() {
 		if err := saveHistoryToDB(point); err != nil {
 			log.Printf("Failed to save history to DB: %v\n", err)
 		}
+
+		// Publish to MQTT if enabled
+		publishMetrics(point)
 	}
 }
 
@@ -663,6 +1057,13 @@ func (p *program) run() {
 		log.Println("History will only be stored in memory (max 1 hour)")
 	}
 
+	// Load MQTT configuration and connect if enabled
+	if err := loadMQTTConfig(); err != nil {
+		log.Printf("Warning: Failed to load MQTT config: %v\n", err)
+	} else {
+		connectMQTT()
+	}
+
 	// Start history collector in background
 	go collectHistory()
 
@@ -670,6 +1071,8 @@ func (p *program) run() {
 	http.HandleFunc("/api/system", handleSystemInfo)
 	http.HandleFunc("/api/history", handleHistory)
 	http.HandleFunc("/api/history/stats", handleHistoryStats)
+	http.HandleFunc("/api/mqtt/config", handleMQTTConfig)
+	http.HandleFunc("/api/mqtt/status", handleMQTTStatus)
 	http.HandleFunc("/health", handleHealth)
 	log.Println("Server starting on :8088...")
 	log.Printf("History: collecting every %v, memory buffer %d points, persistent storage enabled\n", historyInterval, historyMaxSize)
@@ -677,6 +1080,9 @@ func (p *program) run() {
 }
 
 func (p *program) Stop(s service.Service) error {
+	// Disconnect MQTT
+	disconnectMQTT()
+
 	// Close database connection
 	if db != nil {
 		db.Close()

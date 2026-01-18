@@ -10,6 +10,7 @@
 - **趨勢圖表** - CPU 和記憶體使用率歷史視覺化（60 個數據點）
 - **溫度監控** - 彩色標示的感測器溫度顯示
 - **歷史資料 API** - 查詢任意時段的歷史資料，支援 CSV 下載
+- **MQTT 整合** - 發布系統指標至 MQTT Broker，支援 Web UI 設定
 - **SQLite 持久化** - 歷史資料永久保存於資料庫
 - **跨平台支援** - 支援 Linux 和 Windows
 - **Windows 服務** - MSI 安裝程式支援開機自動啟動
@@ -64,11 +65,14 @@ http://localhost:8088/
 
 | 端點 | 說明 |
 |------|------|
-| `GET /` | 即時監控 Web 儀表板 |
+| `GET /` | 即時監控 Web 儀表板（含 MQTT 設定） |
 | `GET /health` | 健康檢查端點 |
 | `GET /api/system` | 系統資訊 JSON API |
 | `GET /api/history` | 歷史資料查詢（支援任意時段） |
 | `GET /api/history/stats` | 歷史資料統計資訊 |
+| `GET /api/mqtt/config` | 取得 MQTT 設定 |
+| `POST /api/mqtt/config` | 儲存 MQTT 設定 |
+| `GET /api/mqtt/status` | 取得 MQTT 連線狀態 |
 
 ### 歷史資料 API
 
@@ -197,6 +201,66 @@ curl "http://localhost:8088/api/history/stats"
 | 綠色 | 30-50°C | 正常 |
 | 橙色 | 50-70°C | 偏高 |
 | 紅色 | > 70°C | 過熱 |
+
+## MQTT 整合
+
+儀表板內建 MQTT 設定介面，可將系統指標發布至 MQTT Broker。
+
+### 設定欄位
+
+透過 Web 儀表板或 API 設定：
+
+| 欄位 | 說明 |
+|------|------|
+| **Broker** | MQTT Broker 位址（例如 `tcp://broker.example.com:1883`） |
+| **Client ID** | 自訂裝置識別名稱（留空則使用主機名稱） |
+| **Username** | 認證帳號（選填） |
+| **Password** | 認證密碼（選填） |
+
+### MQTT 訊息格式
+
+**Topic：** `sysinfo/{client_id}`
+
+**Payload（每 10 秒發送）：**
+```json
+{
+  "hostname": "my-device",
+  "cpu": 45.2,
+  "mem": 60.5,
+  "disk": 29.5,
+  "timestamp": 1737200000
+}
+```
+
+### MQTT API 範例
+
+```bash
+# 取得目前設定
+curl http://localhost:8088/api/mqtt/config
+
+# 儲存設定
+curl -X POST http://localhost:8088/api/mqtt/config \
+  -H "Content-Type: application/json" \
+  -d '{"enabled":true,"broker":"tcp://broker:1883","client_id":"my-device","username":"","password":"","topic_prefix":"sysinfo"}'
+
+# 查看連線狀態
+curl http://localhost:8088/api/mqtt/status
+```
+
+### 設定檔
+
+MQTT 設定儲存於 `mqtt_config.json`：
+
+```json
+{
+  "enabled": true,
+  "broker": "tcp://broker.example.com:1883",
+  "username": "",
+  "password": "",
+  "topic_prefix": "sysinfo",
+  "client_id": "my-device"
+}
+```
 
 ## 手動編譯
 
