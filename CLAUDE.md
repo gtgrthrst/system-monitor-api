@@ -32,10 +32,18 @@ Single-file Go HTTP API that exposes system metrics using gopsutil v3 with SQLit
 - `?format=csv` - Download as CSV file
 
 **Data Storage:**
-- Memory ring buffer: 360 points (1 hour) for fast recent queries
+- Memory ring buffer: 120 points (1 hour at 30s interval) for fast recent queries
 - SQLite database: `sysinfo_history.db` for persistent long-term storage
 
-**Data flow:** HTTP handler → `getSystemInfo()` → gopsutil calls → JSON response / SQLite storage
+**CPU Optimization (Low Resource Mode):**
+- Background CPU collector: Runs every 2s with blocking measurement for accuracy
+- System info cache: 3s TTL to reduce repeated gopsutil calls
+- Host info cache: 5min TTL (host info rarely changes)
+- Process list cache: 15s TTL
+- History collection: 30s interval (configurable)
+- Temperature monitoring: Can be disabled via `enableTemperature` flag
+
+**Data flow:** HTTP handler → `getCachedSystemInfo()` → cache hit or `getSystemInfo()` → gopsutil calls → JSON response / SQLite storage
 
 **Key dependencies:**
 - `github.com/shirou/gopsutil/v3` - Cross-platform system metrics
@@ -44,7 +52,7 @@ Single-file Go HTTP API that exposes system metrics using gopsutil v3 with SQLit
 
 **MQTT Feature:**
 - Config stored in `mqtt_config.json` (auto-created on first run)
-- Publishes to topic `{topic_prefix}/{client_id}` every 10 seconds
+- Publishes to topic `{topic_prefix}/{client_id}` every 30 seconds
 - Payload: `{"hostname":"...","cpu":45.2,"mem":60.5,"disk":29.5,"timestamp":...}`
 - Web UI settings in dashboard at bottom of page
 - Optional username/password authentication

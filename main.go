@@ -26,9 +26,19 @@ import (
 
 // History configuration - optimized for low resource usage
 const (
-	historyInterval = 10 * time.Second // Collect every 10 seconds
-	historyMaxSize  = 360              // 1 hour of data (360 * 10s = 3600s)
+	historyInterval = 30 * time.Second // Collect every 30 seconds (reduced from 10s)
+	historyMaxSize  = 120              // 1 hour of data (120 * 30s = 3600s)
 )
+
+// Cache configuration for reducing CPU usage
+const (
+	sysInfoCacheTTL  = 3 * time.Second   // System info cache TTL
+	hostInfoCacheTTL = 5 * time.Minute   // Host info rarely changes
+	cpuCollectInterval = 2 * time.Second // Background CPU collection interval
+)
+
+// Feature flags
+var enableTemperature = true // Set to false to disable temperature monitoring
 
 // HistoryPoint stores minimal data for each time point
 type HistoryPoint struct {
@@ -450,7 +460,7 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
     </div>
   </div>
 </div>
-<div class="update-time"><a href="/processes" style="color:#0af;text-decoration:none">View Processes →</a> | Refresh: 2s | History: 60 points</div>
+<div class="update-time"><a href="/processes" style="color:#0af;text-decoration:none">View Processes →</a> | Refresh: 5s | History: 120 points (30s interval)</div>
 </div>
 <script>
 const MAX_POINTS = 60;
@@ -570,7 +580,7 @@ function update() {
   }).catch(e => { document.getElementById('content').innerHTML = '<div style="color:red">Error: ' + e + '</div>'; });
 }
 update();
-setInterval(update, 2000);
+setInterval(update, 5000);
 
 // MQTT Configuration
 let mqttConfig = {};
@@ -714,8 +724,71 @@ type ProcessListResponse struct {
 	Processes  []ProcessInfo `json:"processes"`
 }
 
-// getProcessList returns a list of processes sorted by CPU usage
+// Process list cache to reduce CPU usage
+var (
+	processCache      []ProcessInfo
+	processCacheTime  time.Time
+	processCacheMutex sync.RWMutex
+	processCacheTTL   = 15 * time.Second // Increased from 5s to reduce CPU
+)
+
+// System info cache to avoid repeated gopsutil calls
+var (
+	sysInfoCache      *SystemInfo
+	sysInfoCacheTime  time.Time
+	sysInfoCacheMutex sync.RWMutex
+)
+
+// Host info cache (rarely changes)
+var (
+	hostInfoCache      *host.InfoStat
+	hostInfoCacheTime  time.Time
+	hostInfoCacheMutex sync.RWMutex
+)
+
+// Background CPU collection cache
+var (
+	cpuPercentCache      []float64
+	cpuPercentCacheMutex sync.RWMutex
+)
+
+// getProcessList returns a list of processes sorted by CPU usage (with caching)
 func getProcessList() ([]ProcessInfo, error) {
+	processCacheMutex.RLock()
+	if time.Since(processCacheTime) < processCacheTTL && processCache != nil {
+		result := make([]ProcessInfo, len(processCache))
+		copy(result, processCache)
+		processCacheMutex.RUnlock()
+		return result, nil
+	}
+	processCacheMutex.RUnlock()
+
+	// Cache miss - fetch fresh data
+	processCacheMutex.Lock()
+	defer processCacheMutex.Unlock()
+
+	// Double-check after acquiring write lock
+	if time.Since(processCacheTime) < processCacheTTL && processCache != nil {
+		result := make([]ProcessInfo, len(processCache))
+		copy(result, processCache)
+		return result, nil
+	}
+
+	processList, err := fetchProcessList()
+	if err != nil {
+		return nil, err
+	}
+
+	processCache = processList
+	processCacheTime = time.Now()
+
+	result := make([]ProcessInfo, len(processCache))
+	copy(result, processCache)
+	return result, nil
+}
+
+// fetchProcessList fetches the actual process list from the system
+func fetchProcessList() ([]ProcessInfo, error) {
 	procs, err := process.Processes()
 	if err != nil {
 		return nil, err
@@ -753,8 +826,78 @@ func getProcessList() ([]ProcessInfo, error) {
 	return processList, nil
 }
 
+// getCachedHostInfo returns cached host info to avoid repeated syscalls
+func getCachedHostInfo() (*host.InfoStat, error) {
+	hostInfoCacheMutex.RLock()
+	if hostInfoCache != nil && time.Since(hostInfoCacheTime) < hostInfoCacheTTL {
+		info := hostInfoCache
+		hostInfoCacheMutex.RUnlock()
+		return info, nil
+	}
+	hostInfoCacheMutex.RUnlock()
+
+	hostInfoCacheMutex.Lock()
+	defer hostInfoCacheMutex.Unlock()
+
+	// Double-check after acquiring write lock
+	if hostInfoCache != nil && time.Since(hostInfoCacheTime) < hostInfoCacheTTL {
+		return hostInfoCache, nil
+	}
+
+	info, err := host.Info()
+	if err != nil {
+		return nil, err
+	}
+
+	hostInfoCache = info
+	hostInfoCacheTime = time.Now()
+	return info, nil
+}
+
+// getCachedCPUPercent returns cached CPU percent from background collector
+func getCachedCPUPercent() []float64 {
+	cpuPercentCacheMutex.RLock()
+	defer cpuPercentCacheMutex.RUnlock()
+
+	if cpuPercentCache == nil {
+		// Fallback if background collector hasn't run yet
+		percent, _ := cpu.Percent(0, true)
+		return percent
+	}
+
+	result := make([]float64, len(cpuPercentCache))
+	copy(result, cpuPercentCache)
+	return result
+}
+
+// startCPUCollector starts background CPU usage collection
+func startCPUCollector() {
+	// Initial collection
+	percent, _ := cpu.Percent(time.Second, true)
+	cpuPercentCacheMutex.Lock()
+	cpuPercentCache = percent
+	cpuPercentCacheMutex.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(cpuCollectInterval)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			// Use blocking call for accurate measurement
+			percent, err := cpu.Percent(time.Second, true)
+			if err != nil {
+				continue
+			}
+
+			cpuPercentCacheMutex.Lock()
+			cpuPercentCache = percent
+			cpuPercentCacheMutex.Unlock()
+		}
+	}()
+}
+
 func getSystemInfo() (*SystemInfo, error) {
-	hostInfo, err := host.Info()
+	hostInfo, err := getCachedHostInfo()
 	if err != nil {
 		return nil, err
 	}
@@ -763,10 +906,9 @@ func getSystemInfo() (*SystemInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	cpuPercent, err := cpu.Percent(0, true)
-	if err != nil {
-		return nil, err
-	}
+
+	// Use cached CPU percent from background collector
+	cpuPercent := getCachedCPUPercent()
 
 	modelName := ""
 	if len(cpuInfo) > 0 {
@@ -787,15 +929,17 @@ func getSystemInfo() (*SystemInfo, error) {
 		return nil, err
 	}
 
-	// Temperature sensors
+	// Temperature sensors (optional - can be disabled for CPU savings)
 	var temps []TempInfo
-	sensors, _ := host.SensorsTemperatures()
-	for _, s := range sensors {
-		if s.Temperature > 0 {
-			temps = append(temps, TempInfo{
-				Name:        s.SensorKey,
-				Temperature: s.Temperature,
-			})
+	if enableTemperature {
+		sensors, _ := host.SensorsTemperatures()
+		for _, s := range sensors {
+			if s.Temperature > 0 {
+				temps = append(temps, TempInfo{
+					Name:        s.SensorKey,
+					Temperature: s.Temperature,
+				})
+			}
 		}
 	}
 
@@ -827,9 +971,37 @@ func getSystemInfo() (*SystemInfo, error) {
 	}, nil
 }
 
+// getCachedSystemInfo returns cached system info to reduce CPU usage
+func getCachedSystemInfo() (*SystemInfo, error) {
+	sysInfoCacheMutex.RLock()
+	if sysInfoCache != nil && time.Since(sysInfoCacheTime) < sysInfoCacheTTL {
+		info := sysInfoCache
+		sysInfoCacheMutex.RUnlock()
+		return info, nil
+	}
+	sysInfoCacheMutex.RUnlock()
+
+	sysInfoCacheMutex.Lock()
+	defer sysInfoCacheMutex.Unlock()
+
+	// Double-check after acquiring write lock
+	if sysInfoCache != nil && time.Since(sysInfoCacheTime) < sysInfoCacheTTL {
+		return sysInfoCache, nil
+	}
+
+	info, err := getSystemInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	sysInfoCache = info
+	sysInfoCacheTime = time.Now()
+	return info, nil
+}
+
 func handleSystemInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	info, err := getSystemInfo()
+	info, err := getCachedSystemInfo()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
@@ -1173,11 +1345,12 @@ tr:hover { background: #1a1a1a; }
     <button class="page-btn" id="prev-btn" onclick="prevPage()">← Prev</button>
     <span class="page-info">Page <span id="current-page">1</span> / <span id="total-pages">1</span></span>
     <button class="page-btn" id="next-btn" onclick="nextPage()">Next →</button>
+    <button class="page-btn" id="refresh-btn" onclick="loadProcesses()" style="margin-left:20px">↻ Refresh</button>
   </div>
 </div>
 <div class="footer">
   <a href="/" class="back-link">← Back to Dashboard</a>
-  <span>Refresh: 2s</span>
+  <span>Manual refresh | Cache: 5s</span>
 </div>
 </div>
 <script>
@@ -1234,7 +1407,6 @@ function nextPage() {
 }
 
 loadProcesses();
-setInterval(loadProcesses, 2000);
 </script>
 </body>
 </html>`
@@ -1311,6 +1483,10 @@ func (p *program) run() {
 	} else {
 		connectMQTT()
 	}
+
+	// Start background CPU collector for accurate measurements
+	startCPUCollector()
+	log.Printf("CPU collector started (interval: %v)\n", cpuCollectInterval)
 
 	// Start history collector in background
 	go collectHistory()
