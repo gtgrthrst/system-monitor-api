@@ -53,6 +53,6 @@ Single-file Go HTTP API that exposes system metrics using gopsutil v3 with SQLit
 **MQTT Feature:**
 - Config stored in `mqtt_config.json` (auto-created on first run)
 - Publishes to topic `{topic_prefix}/{client_id}` every 30 seconds
-- Payload: `{"hostname":"...","cpu":45.2,"mem":60.5,"disk":29.5,"boot_time":1737250800}`
+- Payload: `{"hostname":"...","cpu":45.2,"mem":60.5,"disk":29.5,"uptime":86400}`
 - Web UI settings in dashboard at bottom of page
 - Optional username/password authentication
