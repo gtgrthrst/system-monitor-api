@@ -263,12 +263,18 @@ func publishMetrics(point HistoryPoint) {
 	clientID := getEffectiveClientID()
 	topic := fmt.Sprintf("%s/%s", topicPrefix, clientID)
 
+	// Calculate system boot time
+	var bootTime int64
+	if hostInfo, err := getCachedHostInfo(); err == nil {
+		bootTime = time.Now().Unix() - int64(hostInfo.Uptime)
+	}
+
 	payload := map[string]interface{}{
 		"hostname":  clientID,
 		"cpu":       point.CPUPercent,
 		"mem":       point.MemPercent,
 		"disk":      point.DiskPercent,
-		"timestamp": point.Timestamp,
+		"boot_time": bootTime,
 	}
 
 	data, err := json.Marshal(payload)
