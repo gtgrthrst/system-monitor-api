@@ -6,23 +6,20 @@ services:
     build:
       context: https://github.com/gtgrthrst/system-monitor-api.git#main
       dockerfile_inline: |
-        # 使用最新穩定的 Alpine 版本 Go
         FROM golang:1.21-alpine AS builder
-        # 設定代理並關閉 CGO 以確保編譯成功
         ENV GOPROXY=https://goproxy.io,direct
         ENV CGO_ENABLED=0
         WORKDIR /app
-        # 先複製 mod 檔案
-        COPY go.mod ./
-        # 如果專案有 go.sum 則複製，沒有則忽略
-        COPY go.sum* ./
-        RUN go mod download
-        # 複製剩餘源碼並編譯
+        # 直接複製所有檔案
         COPY . .
+        # 強制執行整理與補齊依賴，忽略原本可能損壞的 go.sum
+        RUN go mod tidy
+        # 編譯
         RUN go build -o /sysinfo-api main.go
 
-        # 運行階段
         FROM alpine:latest
+        # 為了讓監控工具能讀取系統資訊，安裝基本工具
+        RUN apk add --no-cache ca-certificates
         WORKDIR /
         COPY --from=builder /sysinfo-api /sysinfo-api
         EXPOSE 8088
