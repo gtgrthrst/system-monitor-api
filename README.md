@@ -130,7 +130,7 @@ GET /api/history/stats
   "min_datetime": "2026-01-17 10:30:21",
   "max_datetime": "2026-01-18 10:30:21",
   "duration_hours": 24.0,
-  "interval_seconds": 10
+  "interval_seconds": 30
 }
 ```
 

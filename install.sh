@@ -30,7 +30,8 @@ echo "Go version: $(go version)"
 if [ -d "$INSTALL_DIR" ]; then
     echo "Updating existing installation..."
     cd "$INSTALL_DIR"
-    git pull
+    git fetch origin
+    git reset --hard origin/main
 else
     echo "Cloning repository..."
     git clone "$REPO" "$INSTALL_DIR"
