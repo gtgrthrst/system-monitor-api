@@ -6,7 +6,7 @@ A lightweight, cross-platform system monitoring API with real-time web dashboard
 
 ## Features
 
-- **Real-time Dashboard** - Terminal-style web UI with live updates every 2 seconds
+- **Real-time Dashboard** - Terminal-style web UI with live updates every 5 seconds
 - **Process Monitor** - View all running processes with CPU/memory usage, pagination support
 - **Trend Charts** - CPU and memory usage history visualization (60 data points)
 - **Temperature Monitoring** - Color-coded sensor temperature display
@@ -96,7 +96,7 @@ GET /api/history?start=<unix_timestamp>&end=<unix_timestamp>&format=csv
 **Response (JSON):**
 ```json
 {
-  "interval_seconds": 10,
+  "interval_seconds": 30,
   "start_time": 1768706921,
   "end_time": 1768708721,
   "count": 180,
@@ -214,7 +214,7 @@ A dedicated page for viewing all running processes, accessible at `/processes`.
 
 - View all system processes sorted by CPU usage
 - Pagination support (50 processes per page)
-- Auto-refresh every 2 seconds
+- Manual refresh with Refresh button
 - Displays: PID, Name, CPU%, Memory%, Status, User
 
 ### Process API
@@ -268,7 +268,7 @@ Configure MQTT via the web dashboard or API:
 
 **Topic:** `sysinfo/{client_id}`
 
-**Payload (every 10 seconds):**
+**Payload (every 30 seconds):**
 ```json
 {
   "hostname": "my-device",

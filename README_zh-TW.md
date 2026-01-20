@@ -6,7 +6,7 @@
 
 ## 功能特色
 
-- **即時儀表板** - 終端機風格 Web 介面，每 2 秒自動更新
+- **即時儀表板** - 終端機風格 Web 介面，每 5 秒自動更新
 - **程序監控** - 檢視所有執行中的程序，支援分頁瀏覽
 - **趨勢圖表** - CPU 和記憶體使用率歷史視覺化（60 個數據點）
 - **溫度監控** - 彩色標示的感測器溫度顯示
@@ -98,7 +98,7 @@ GET /api/history?start=<unix_timestamp>&end=<unix_timestamp>&format=csv
 **回應範例（JSON）：**
 ```json
 {
-  "interval_seconds": 10,
+  "interval_seconds": 30,
   "start_time": 1768706921,
   "end_time": 1768708721,
   "count": 180,
@@ -216,7 +216,7 @@ curl "http://localhost:8088/api/history/stats"
 
 - 依 CPU 使用率排序顯示所有系統程序
 - 支援分頁瀏覽（每頁 50 筆）
-- 每 2 秒自動更新
+- 手動更新（點擊 Refresh 按鈕）
 - 顯示欄位：PID、名稱、CPU%、記憶體%、狀態、使用者
 
 ### 程序 API
@@ -270,7 +270,7 @@ GET /api/processes?page=1&limit=50
 
 **Topic：** `sysinfo/{client_id}`
 
-**Payload（每 10 秒發送）：**
+**Payload（每 30 秒發送）：**
 ```json
 {
   "hostname": "my-device",
