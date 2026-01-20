@@ -57,6 +57,25 @@ curl -fsSL https://raw.githubusercontent.com/gtgrthrst/system-monitor-api/main/i
 - 開機自動啟動
 - 安裝路徑：`C:\Program Files\SysinfoAPI\`
 
+### Docker
+
+```bash
+# 使用 docker-compose（推薦）
+git clone https://github.com/gtgrthrst/system-monitor-api.git
+cd system-monitor-api
+docker compose up -d
+
+# 或手動建置並執行
+docker build -t sysinfo-api .
+docker run -d -p 8088:8088 -v sysinfo-data:/data --name sysinfo-api sysinfo-api
+```
+
+**Docker 特色：**
+- 多階段建置，映像檔極小（約 15MB）
+- SQLite 資料庫持久化於 Volume
+- 內建健康檢查
+- 失敗自動重啟
+
 ## 使用方式
 
 安裝完成後，開啟瀏覽器：

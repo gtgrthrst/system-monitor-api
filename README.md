@@ -55,6 +55,25 @@ Download from [Releases](https://github.com/gtgrthrst/system-monitor-api/release
 - Auto-starts on system boot
 - Install location: `C:\Program Files\SysinfoAPI\`
 
+### Docker
+
+```bash
+# Using docker-compose (recommended)
+git clone https://github.com/gtgrthrst/system-monitor-api.git
+cd system-monitor-api
+docker compose up -d
+
+# Or build and run manually
+docker build -t sysinfo-api .
+docker run -d -p 8088:8088 -v sysinfo-data:/data --name sysinfo-api sysinfo-api
+```
+
+**Docker Features:**
+- Multi-stage build for minimal image size (~15MB)
+- SQLite database persisted in volume
+- Health check included
+- Auto-restart on failure
+
 ## Usage
 
 After installation, open your browser:

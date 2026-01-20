@@ -1,0 +1,29 @@
+# Binary files
+sysinfo-api
+sysinfo-api.exe
+*.exe
+*.msi
+
+# Database and config
+*.db
+mqtt_config.json
+
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+LICENSE
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.tmp
