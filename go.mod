@@ -1,6 +1,6 @@
 module sysinfo-api
 
-go 1.24.12
+go 1.23
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.4.3

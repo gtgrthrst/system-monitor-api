@@ -1,8 +1,11 @@
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies for CGO (required by go-sqlite3)
 RUN apk add --no-cache gcc musl-dev
+
+# Set proxy for faster downloads in China/Asia
+ENV GOPROXY=https://goproxy.io,direct
 
 WORKDIR /app
 
@@ -13,8 +16,8 @@ RUN go mod download
 # Copy source code
 COPY main.go ./
 
-# Build with CGO enabled for sqlite3
-RUN CGO_ENABLED=1 GOOS=linux go build -a -ldflags '-linkmode external -extldflags "-static"' -o sysinfo-api .
+# Build with CGO enabled for sqlite3 (static linking)
+RUN CGO_ENABLED=1 go build -ldflags '-linkmode external -extldflags "-static"' -o sysinfo-api .
 
 # Runtime stage
 FROM alpine:3.19
