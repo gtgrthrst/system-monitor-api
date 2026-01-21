@@ -401,6 +401,7 @@ const dashboardHTML = `<!DOCTYPE html>
 body { background: #0a0a0a; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px; padding: 20px; }
 .container { max-width: 800px; margin: 0 auto; }
 h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; font-size: 18px; }
+.host-subtitle { color: #888; font-size: 12px; text-align: center; margin: -15px 0 20px 0; }
 .section { background: #111; border: 1px solid #333; margin-bottom: 15px; padding: 15px; border-radius: 4px; }
 .section-title { color: #0af; font-weight: bold; margin-bottom: 10px; }
 .row { display: flex; justify-content: space-between; padding: 3px 0; }
