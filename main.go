@@ -600,6 +600,26 @@ function formatUptime(s) {
   const m = Math.floor((s % 3600) / 60);
   return d + 'd ' + h + 'h ' + m + 'm';
 }
+function getColorByPercent(p) {
+  if (p <= 50) return '#0f0';
+  if (p <= 80) return '#ff0';
+  return '#f44';
+}
+function toggleMQTT() {
+  const body = document.getElementById('mqtt-body');
+  const arrow = document.getElementById('mqtt-arrow');
+  const expanded = body.classList.toggle('expanded');
+  arrow.classList.toggle('expanded', expanded);
+  arrow.textContent = expanded ? '▼' : '▶';
+  localStorage.setItem('mqttExpanded', expanded);
+}
+function initMQTTState() {
+  if (localStorage.getItem('mqttExpanded') === 'true') {
+    document.getElementById('mqtt-body').classList.add('expanded');
+    document.getElementById('mqtt-arrow').classList.add('expanded');
+    document.getElementById('mqtt-arrow').textContent = '▼';
+  }
+}
 function drawChart(canvasId, data, color, fillColor) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
