@@ -528,17 +528,22 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 </div>
 <div id="metric-cards" class="metric-cards">Loading...</div>
 <div id="core-cards" class="core-cards"></div>
-<div id="mqtt-section" class="section">
-  <div class="section-title">MQTT SETTINGS <span id="mqtt-status-indicator" class="mqtt-status"><span class="dot disabled"></span><span id="mqtt-status-text">Disabled</span></span></div>
-  <div class="mqtt-form">
-    <div class="mqtt-row"><label>Broker</label><input type="text" id="mqtt-broker" placeholder="tcp://broker.example.com:1883"></div>
-    <div class="mqtt-row"><label>Client ID</label><input type="text" id="mqtt-client-id" placeholder="(auto: hostname)"></div>
-    <div class="mqtt-row"><label>Username</label><input type="text" id="mqtt-username" placeholder="(optional)"></div>
-    <div class="mqtt-row"><label>Password</label><input type="password" id="mqtt-password" placeholder="(optional)"></div>
-    <div class="mqtt-topic">Topic: <span id="mqtt-topic-preview">sysinfo/...</span></div>
-    <div class="mqtt-actions">
-      <label class="mqtt-toggle"><input type="checkbox" id="mqtt-enabled"><span class="slider"></span><span>Enable MQTT</span></label>
-      <button class="mqtt-btn" id="mqtt-save">Save Settings</button>
+<div id="mqtt-section" class="mqtt-collapsible">
+  <div class="mqtt-header" onclick="toggleMQTT()">
+    <span class="mqtt-header-title"><span class="arrow" id="mqtt-arrow">▶</span> MQTT Settings</span>
+    <span id="mqtt-status-indicator" class="mqtt-status"><span class="dot disabled"></span><span id="mqtt-status-text">Disabled</span></span>
+  </div>
+  <div class="mqtt-body" id="mqtt-body">
+    <div class="mqtt-form">
+      <div class="mqtt-row"><label>Broker</label><input type="text" id="mqtt-broker" placeholder="tcp://broker.example.com:1883"></div>
+      <div class="mqtt-row"><label>Client ID</label><input type="text" id="mqtt-client-id" placeholder="(auto: hostname)"></div>
+      <div class="mqtt-row"><label>Username</label><input type="text" id="mqtt-username" placeholder="(optional)"></div>
+      <div class="mqtt-row"><label>Password</label><input type="password" id="mqtt-password" placeholder="(optional)"></div>
+      <div class="mqtt-topic">Topic: <span id="mqtt-topic-preview">sysinfo/...</span></div>
+      <div class="mqtt-actions">
+        <label class="mqtt-toggle"><input type="checkbox" id="mqtt-enabled"><span class="slider"></span><span>Enable MQTT</span></label>
+        <button class="mqtt-btn" id="mqtt-save">Save Settings</button>
+      </div>
     </div>
   </div>
 </div>
