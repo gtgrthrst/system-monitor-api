@@ -526,7 +526,8 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
     </svg>
   </div>
 </div>
-<div id="content">Loading...</div>
+<div id="metric-cards" class="metric-cards">Loading...</div>
+<div id="core-cards" class="core-cards"></div>
 <div id="mqtt-section" class="section">
   <div class="section-title">MQTT SETTINGS <span id="mqtt-status-indicator" class="mqtt-status"><span class="dot disabled"></span><span id="mqtt-status-text">Disabled</span></span></div>
   <div class="mqtt-form">
