@@ -423,8 +423,6 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 .mqtt-header-title .arrow.expanded { transform: rotate(90deg); }
 .mqtt-body { display: none; padding: 0 15px 15px 15px; border-top: 1px solid #333; }
 .mqtt-body.expanded { display: block; }
-.section { background: #111; border: 1px solid #333; margin-bottom: 15px; padding: 15px; border-radius: 4px; }
-.section-title { color: #0af; font-weight: bold; margin-bottom: 10px; }
 .row { display: flex; justify-content: space-between; padding: 3px 0; }
 .label { color: #888; }
 .value { color: #0f0; }
@@ -445,8 +443,6 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 .cpu-cores { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
 .core { background: #1a1a1a; padding: 8px; border-radius: 3px; }
 .update-time { color: #444; font-size: 11px; text-align: right; margin-top: 10px; }
-.chart { background: #0a0a0a; border: 1px solid #333; border-radius: 3px; margin: 10px 0; }
-.chart-label { display: flex; justify-content: space-between; font-size: 11px; color: #555; padding: 0 5px; }
 .mqtt-form { display: grid; gap: 10px; }
 .mqtt-row { display: flex; align-items: center; gap: 10px; }
 .mqtt-row label { width: 100px; color: #888; }
