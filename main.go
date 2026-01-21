@@ -484,6 +484,7 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 <body>
 <div class="container">
 <h1>[ System Monitor ]</h1>
+<div id="host-subtitle" class="host-subtitle">Loading...</div>
 <div class="gauges-container">
   <div class="gauge-card">
     <svg id="cpu-gauge" class="gauge-svg" viewBox="0 0 120 70" width="120" height="70">
