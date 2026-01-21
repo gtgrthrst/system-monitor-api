@@ -409,6 +409,12 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 .metric-card-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
 .metric-card-percent { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
 .metric-card-detail { color: #666; font-size: 11px; }
+.core-cards { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+.core-card { background: #111; border: 1px solid #333; border-radius: 4px; padding: 8px 12px; min-width: 80px; text-align: center; }
+.core-card-title { color: #888; font-size: 10px; margin-bottom: 6px; }
+.core-card-bar { background: #222; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
+.core-card-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s, background-color 0.3s; }
+.core-card-percent { font-size: 12px; font-weight: bold; }
 .section { background: #111; border: 1px solid #333; margin-bottom: 15px; padding: 15px; border-radius: 4px; }
 .section-title { color: #0af; font-weight: bold; margin-bottom: 10px; }
 .row { display: flex; justify-content: space-between; padding: 3px 0; }
