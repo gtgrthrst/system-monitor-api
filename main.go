@@ -478,7 +478,7 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 .spark-line { fill: none; stroke-width: 1.5; }
 .spark-area { opacity: 0.15; }
 .spark-dot { transition: cx 0.3s, cy 0.3s; }
-@media (max-width: 600px) { .gauges-container { flex-direction: column; align-items: center; } .gauge-card { width: 100%; max-width: 250px; } }
+@media (max-width: 768px) { .gauges-container { flex-direction: column; align-items: center; } .gauge-card { width: 100%; max-width: 250px; } .metric-cards { flex-direction: row; } .metric-card { min-width: 45%; } .core-cards { justify-content: center; } .core-card { min-width: 60px; } }
 </style>
 </head>
 <body>
