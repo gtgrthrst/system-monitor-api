@@ -643,48 +643,57 @@ function update() {
     updateSparkline('mem-spark', memHistory, SPARK_POINTS);
     updateSparkline('disk-spark', diskHistory, SPARK_POINTS);
 
-    let cores = d.cpu.usage_percent.map((p, i) =>
-      '<div class="core"><div class="row"><span class="label">Core ' + i + '</span><span class="value">' + p.toFixed(1) + '%</span></div>' +
-      '<div class="bar-container"><div class="bar bar-cpu" style="width:' + p + '%"></div></div></div>'
-    ).join('');
-    document.getElementById('content').innerHTML =
-      '<div class="section"><div class="section-title">HOST</div>' +
-      '<div class="row"><span class="label">Hostname</span><span class="value">' + d.host.hostname + '</span></div>' +
-      '<div class="row"><span class="label">OS</span><span class="value">' + d.host.platform + ' (' + d.host.os + ')</span></div>' +
-      '<div class="row"><span class="label">Uptime</span><span class="value">' + formatUptime(d.host.uptime_seconds) + '</span></div></div>' +
-      '<div class="section"><div class="section-title">CPU - ' + d.cpu.model_name + '</div>' +
-      '<div class="row"><span class="label">Average</span><span class="value">' + cpuAvg.toFixed(1) + '%</span></div>' +
-      '<div class="bar-container"><div class="bar bar-cpu" style="width:' + cpuAvg + '%"></div></div>' +
-      '<canvas id="cpuChart" class="chart" width="740" height="80"></canvas>' +
-      '<div class="chart-label"><span>2 min ago</span><span>now</span></div>' +
-      '<div class="cpu-cores">' + cores + '</div></div>' +
-      '<div class="section"><div class="section-title">MEMORY</div>' +
-      '<div class="row"><span class="label">Used</span><span class="value">' + formatBytes(d.memory.used_bytes) + ' / ' + formatBytes(d.memory.total_bytes) + '</span></div>' +
-      '<div class="bar-container"><div class="bar bar-mem" style="width:' + d.memory.used_percent + '%"></div></div>' +
-      '<canvas id="memChart" class="chart" width="740" height="80"></canvas>' +
-      '<div class="chart-label"><span>2 min ago</span><span>now</span></div>' +
-      '<div class="bar-text">' + d.memory.used_percent.toFixed(1) + '% used</div></div>' +
-      '<div class="section"><div class="section-title">DISK /</div>' +
-      '<div class="row"><span class="label">Used</span><span class="value">' + formatBytes(d.disk.used_bytes) + ' / ' + formatBytes(d.disk.total_bytes) + '</span></div>' +
-      '<div class="bar-container"><div class="bar bar-disk" style="width:' + d.disk.used_percent + '%"></div></div>' +
-      '<div class="bar-text">' + d.disk.used_percent.toFixed(1) + '% used</div></div>' +
-      (d.temperature && d.temperature.length > 0 ?
-        '<div class="section"><div class="section-title">TEMPERATURE</div><div class="temp-grid">' +
-        d.temperature.map(t => {
-          let cls = 'temp-normal';
-          if (t.temperature < 30) cls = 'temp-cold';
-          else if (t.temperature > 70) cls = 'temp-hot';
-          else if (t.temperature > 50) cls = 'temp-warm';
-          return '<div class="temp-item"><div class="row"><span class="label">' + t.name + '</span></div>' +
-            '<div class="temp-value ' + cls + '">' + t.temperature.toFixed(1) + '°C</div></div>';
-        }).join('') + '</div></div>' : '');
+    // Update host subtitle
+    document.getElementById('host-subtitle').textContent =
+      d.host.hostname + ' • ' + d.host.platform + ' • Uptime: ' + formatUptime(d.host.uptime_seconds);
 
-    // Draw charts after DOM update
-    setTimeout(() => {
-      drawChart('cpuChart', cpuHistory, '#0f0', 'rgba(0,255,0,0.1)');
-      drawChart('memChart', memHistory, '#f0f', 'rgba(255,0,255,0.1)');
-    }, 0);
-  }).catch(e => { document.getElementById('content').innerHTML = '<div style="color:red">Error: ' + e + '</div>'; });
+    // Render metric cards
+    let metricCards =
+      '<div class="metric-card">' +
+        '<div class="metric-card-title">CPU</div>' +
+        '<div class="metric-card-bar"><div class="metric-card-bar-fill" style="width:' + cpuAvg + '%;background:#0f0"></div></div>' +
+        '<div class="metric-card-percent" style="color:#0f0">' + cpuAvg.toFixed(1) + '%</div>' +
+        '<div class="metric-card-detail">' + d.cpu.model_name.split(' ').slice(0,3).join(' ') + '</div>' +
+      '</div>' +
+      '<div class="metric-card">' +
+        '<div class="metric-card-title">MEMORY</div>' +
+        '<div class="metric-card-bar"><div class="metric-card-bar-fill" style="width:' + d.memory.used_percent + '%;background:#f0f"></div></div>' +
+        '<div class="metric-card-percent" style="color:#f0f">' + d.memory.used_percent.toFixed(1) + '%</div>' +
+        '<div class="metric-card-detail">' + formatBytes(d.memory.used_bytes) + ' / ' + formatBytes(d.memory.total_bytes) + '</div>' +
+      '</div>' +
+      '<div class="metric-card">' +
+        '<div class="metric-card-title">DISK</div>' +
+        '<div class="metric-card-bar"><div class="metric-card-bar-fill" style="width:' + d.disk.used_percent + '%;background:#ff0"></div></div>' +
+        '<div class="metric-card-percent" style="color:#ff0">' + d.disk.used_percent.toFixed(1) + '%</div>' +
+        '<div class="metric-card-detail">' + formatBytes(d.disk.used_bytes) + ' / ' + formatBytes(d.disk.total_bytes) + '</div>' +
+      '</div>';
+
+    // Temperature card (conditional)
+    if (d.temperature && d.temperature.length > 0) {
+      let maxTemp = Math.max(...d.temperature.map(t => t.temperature));
+      let tempColor = maxTemp < 60 ? '#0f0' : (maxTemp < 80 ? '#ff0' : '#f44');
+      metricCards +=
+        '<div class="metric-card">' +
+          '<div class="metric-card-title">TEMP</div>' +
+          '<div class="metric-card-bar"><div class="metric-card-bar-fill" style="width:' + Math.min(maxTemp, 100) + '%;background:' + tempColor + '"></div></div>' +
+          '<div class="metric-card-percent" style="color:' + tempColor + '">' + maxTemp.toFixed(1) + '°C</div>' +
+          '<div class="metric-card-detail">' + d.temperature[0].name + '</div>' +
+        '</div>';
+    }
+    document.getElementById('metric-cards').innerHTML = metricCards;
+
+    // Render core cards
+    let coreCards = d.cpu.usage_percent.map((p, i) => {
+      let color = getColorByPercent(p);
+      return '<div class="core-card">' +
+        '<div class="core-card-title">Core ' + i + '</div>' +
+        '<div class="core-card-bar"><div class="core-card-bar-fill" style="width:' + p + '%;background:' + color + '"></div></div>' +
+        '<div class="core-card-percent" style="color:' + color + '">' + p.toFixed(1) + '%</div>' +
+      '</div>';
+    }).join('');
+    document.getElementById('core-cards').innerHTML = coreCards;
+
+  }).catch(e => { document.getElementById('metric-cards').innerHTML = '<div style="color:red">Error: ' + e + '</div>'; });
 }
 update();
 setInterval(update, 5000);
