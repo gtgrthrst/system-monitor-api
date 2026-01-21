@@ -466,6 +466,47 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 <body>
 <div class="container">
 <h1>[ System Monitor ]</h1>
+<div class="gauges-container">
+  <div class="gauge-card">
+    <svg id="cpu-gauge" class="gauge-svg" viewBox="0 0 120 70" width="120" height="70">
+      <path class="gauge-track" d="M 10 60 A 50 50 0 0 1 110 60"/>
+      <path class="gauge-value gauge-cpu" d="M 10 60 A 50 50 0 0 1 110 60" stroke-dasharray="157" stroke-dashoffset="157"/>
+      <text x="60" y="52" text-anchor="middle" class="gauge-percent" fill="#0f0">--%</text>
+      <text x="60" y="67" text-anchor="middle" class="gauge-label" fill="#888">CPU</text>
+    </svg>
+    <svg id="cpu-spark" class="sparkline" viewBox="0 0 100 25" width="100" height="25">
+      <polygon class="spark-area" fill="#0f0" points="0,25 100,25"/>
+      <polyline class="spark-line" stroke="#0f0" points="0,25"/>
+      <circle class="spark-dot" fill="#0f0" r="2" cx="0" cy="25"/>
+    </svg>
+  </div>
+  <div class="gauge-card">
+    <svg id="mem-gauge" class="gauge-svg" viewBox="0 0 120 70" width="120" height="70">
+      <path class="gauge-track" d="M 10 60 A 50 50 0 0 1 110 60"/>
+      <path class="gauge-value gauge-mem" d="M 10 60 A 50 50 0 0 1 110 60" stroke-dasharray="157" stroke-dashoffset="157"/>
+      <text x="60" y="52" text-anchor="middle" class="gauge-percent" fill="#f0f">--%</text>
+      <text x="60" y="67" text-anchor="middle" class="gauge-label" fill="#888">MEMORY</text>
+    </svg>
+    <svg id="mem-spark" class="sparkline" viewBox="0 0 100 25" width="100" height="25">
+      <polygon class="spark-area" fill="#f0f" points="0,25 100,25"/>
+      <polyline class="spark-line" stroke="#f0f" points="0,25"/>
+      <circle class="spark-dot" fill="#f0f" r="2" cx="0" cy="25"/>
+    </svg>
+  </div>
+  <div class="gauge-card">
+    <svg id="disk-gauge" class="gauge-svg" viewBox="0 0 120 70" width="120" height="70">
+      <path class="gauge-track" d="M 10 60 A 50 50 0 0 1 110 60"/>
+      <path class="gauge-value gauge-disk" d="M 10 60 A 50 50 0 0 1 110 60" stroke-dasharray="157" stroke-dashoffset="157"/>
+      <text x="60" y="52" text-anchor="middle" class="gauge-percent" fill="#ff0">--%</text>
+      <text x="60" y="67" text-anchor="middle" class="gauge-label" fill="#888">DISK</text>
+    </svg>
+    <svg id="disk-spark" class="sparkline" viewBox="0 0 100 25" width="100" height="25">
+      <polygon class="spark-area" fill="#ff0" points="0,25 100,25"/>
+      <polyline class="spark-line" stroke="#ff0" points="0,25"/>
+      <circle class="spark-dot" fill="#ff0" r="2" cx="0" cy="25"/>
+    </svg>
+  </div>
+</div>
 <div id="content">Loading...</div>
 <div id="mqtt-section" class="section">
   <div class="section-title">MQTT SETTINGS <span id="mqtt-status-indicator" class="mqtt-status"><span class="dot disabled"></span><span id="mqtt-status-text">Disabled</span></span></div>
