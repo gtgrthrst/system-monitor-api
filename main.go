@@ -415,6 +415,14 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 .core-card-bar { background: #222; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
 .core-card-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s, background-color 0.3s; }
 .core-card-percent { font-size: 12px; font-weight: bold; }
+.mqtt-collapsible { background: #111; border: 1px solid #333; border-radius: 4px; margin-bottom: 15px; }
+.mqtt-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; cursor: pointer; user-select: none; }
+.mqtt-header:hover { background: #1a1a1a; }
+.mqtt-header-title { color: #888; font-size: 12px; display: flex; align-items: center; gap: 8px; }
+.mqtt-header-title .arrow { transition: transform 0.2s; }
+.mqtt-header-title .arrow.expanded { transform: rotate(90deg); }
+.mqtt-body { display: none; padding: 0 15px 15px 15px; border-top: 1px solid #333; }
+.mqtt-body.expanded { display: block; }
 .section { background: #111; border: 1px solid #333; margin-bottom: 15px; padding: 15px; border-radius: 4px; }
 .section-title { color: #0af; font-weight: bold; margin-bottom: 10px; }
 .row { display: flex; justify-content: space-between; padding: 3px 0; }
