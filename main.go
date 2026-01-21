@@ -775,6 +775,7 @@ document.getElementById('mqtt-client-id').addEventListener('input', updateTopicP
 
 loadMQTTConfig();
 loadMQTTStatus();
+initMQTTState();
 setInterval(loadMQTTStatus, 5000);
 </script>
 </body>
