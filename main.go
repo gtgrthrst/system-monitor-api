@@ -620,52 +620,6 @@ function initMQTTState() {
     document.getElementById('mqtt-arrow').textContent = '▼';
   }
 }
-function drawChart(canvasId, data, color, fillColor) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-
-  // Grid lines
-  ctx.strokeStyle = '#222';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = (h / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(w, y);
-    ctx.stroke();
-  }
-
-  if (data.length < 2) return;
-
-  // Fill area
-  ctx.beginPath();
-  ctx.moveTo(0, h);
-  data.forEach((v, i) => {
-    const x = (i / (MAX_POINTS - 1)) * w;
-    const y = h - (v / 100) * h;
-    if (i === 0) ctx.lineTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.lineTo(((data.length - 1) / (MAX_POINTS - 1)) * w, h);
-  ctx.closePath();
-  ctx.fillStyle = fillColor;
-  ctx.fill();
-
-  // Line
-  ctx.beginPath();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  data.forEach((v, i) => {
-    const x = (i / (MAX_POINTS - 1)) * w;
-    const y = h - (v / 100) * h;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-}
 
 function update() {
   fetch('/api/system').then(r => r.json()).then(d => {
