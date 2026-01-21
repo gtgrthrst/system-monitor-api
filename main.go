@@ -402,6 +402,13 @@ body { background: #0a0a0a; color: #00ff00; font-family: 'Courier New', monospac
 .container { max-width: 800px; margin: 0 auto; }
 h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; font-size: 18px; }
 .host-subtitle { color: #888; font-size: 12px; text-align: center; margin: -15px 0 20px 0; }
+.metric-cards { display: flex; justify-content: center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; }
+.metric-card { background: #111; border: 1px solid #333; border-radius: 4px; padding: 12px 15px; min-width: 140px; text-align: center; flex: 1; max-width: 180px; }
+.metric-card-title { color: #fff; font-size: 12px; font-weight: bold; margin-bottom: 8px; }
+.metric-card-bar { background: #222; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+.metric-card-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.metric-card-percent { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+.metric-card-detail { color: #666; font-size: 11px; }
 .section { background: #111; border: 1px solid #333; margin-bottom: 15px; padding: 15px; border-radius: 4px; }
 .section-title { color: #0af; font-weight: bold; margin-bottom: 10px; }
 .row { display: flex; justify-content: space-between; padding: 3px 0; }
