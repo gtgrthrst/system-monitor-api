@@ -446,6 +446,21 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 .mqtt-status .dot.connected { background: #0f0; box-shadow: 0 0 5px #0f0; }
 .mqtt-status .dot.disconnected { background: #f00; box-shadow: 0 0 5px #f00; }
 .mqtt-status .dot.disabled { background: #666; }
+.gauges-container { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; }
+.gauge-card { background: #111; border: 1px solid #333; border-radius: 4px; padding: 15px 10px 10px; text-align: center; min-width: 160px; flex: 1; max-width: 200px; }
+.gauge-svg { display: block; margin: 0 auto; }
+.gauge-percent { font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace; }
+.gauge-label { font-size: 11px; font-family: 'Courier New', monospace; }
+.gauge-track { fill: none; stroke: #222; stroke-width: 10; stroke-linecap: round; }
+.gauge-value { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 0.5s ease-out; }
+.gauge-cpu { stroke: #0f0; }
+.gauge-mem { stroke: #f0f; }
+.gauge-disk { stroke: #ff0; }
+.sparkline { margin-top: 8px; }
+.spark-line { fill: none; stroke-width: 1.5; }
+.spark-area { opacity: 0.15; }
+.spark-dot { transition: cx 0.3s, cy 0.3s; }
+@media (max-width: 600px) { .gauges-container { flex-direction: column; align-items: center; } .gauge-card { width: 100%; max-width: 250px; } }
 </style>
 </head>
 <body>
