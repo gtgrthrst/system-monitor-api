@@ -526,8 +526,42 @@ h1 { color: #00ff00; border-bottom: 1px solid #333; padding-bottom: 10px; margin
 </div>
 <script>
 const MAX_POINTS = 60;
+const SPARK_POINTS = 20;
 let cpuHistory = [];
 let memHistory = [];
+let diskHistory = [];
+
+function updateGauge(id, percent) {
+  const svg = document.getElementById(id);
+  if (!svg) return;
+  const arc = svg.querySelector('.gauge-value');
+  const text = svg.querySelector('.gauge-percent');
+  const arcLength = 157; // π * 50 (radius)
+  const offset = arcLength - (percent / 100) * arcLength;
+  arc.style.strokeDashoffset = offset;
+  text.textContent = percent.toFixed(1) + '%';
+}
+
+function updateSparkline(id, data, maxPoints) {
+  const svg = document.getElementById(id);
+  if (!svg || data.length < 2) return;
+  const w = 100, h = 25;
+  const points = data.slice(-maxPoints).map((v, i, arr) => {
+    const x = (i / (maxPoints - 1)) * w;
+    const y = h - (v / 100) * (h - 2);
+    return x + ',' + y;
+  });
+  const linePoints = points.join(' ');
+  const areaPoints = '0,' + h + ' ' + linePoints + ' ' + w + ',' + h;
+  svg.querySelector('.spark-line').setAttribute('points', linePoints);
+  svg.querySelector('.spark-area').setAttribute('points', areaPoints);
+  const lastData = data[data.length - 1];
+  const lastX = w;
+  const lastY = h - (lastData / 100) * (h - 2);
+  const dot = svg.querySelector('.spark-dot');
+  dot.setAttribute('cx', lastX);
+  dot.setAttribute('cy', lastY);
+}
 
 function formatBytes(b) {
   const u = ['B', 'KB', 'MB', 'GB', 'TB'];
