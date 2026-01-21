@@ -631,6 +631,18 @@ function update() {
     memHistory.push(d.memory.used_percent);
     if (cpuHistory.length > MAX_POINTS) cpuHistory.shift();
     if (memHistory.length > MAX_POINTS) memHistory.shift();
+    diskHistory.push(d.disk.used_percent);
+    if (diskHistory.length > MAX_POINTS) diskHistory.shift();
+
+    // Update gauges
+    updateGauge('cpu-gauge', cpuAvg);
+    updateGauge('mem-gauge', d.memory.used_percent);
+    updateGauge('disk-gauge', d.disk.used_percent);
+
+    // Update sparklines
+    updateSparkline('cpu-spark', cpuHistory, SPARK_POINTS);
+    updateSparkline('mem-spark', memHistory, SPARK_POINTS);
+    updateSparkline('disk-spark', diskHistory, SPARK_POINTS);
 
     let cores = d.cpu.usage_percent.map((p, i) =>
       '<div class="core"><div class="row"><span class="label">Core ' + i + '</span><span class="value">' + p.toFixed(1) + '%</span></div>' +
